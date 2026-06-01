@@ -1,11 +1,14 @@
-# Build from repo root: docker build -f services/cascade-engine/Dockerfile .
-FROM python:3.12-slim
+FROM golang:1.22-alpine AS build
+WORKDIR /src
+COPY services/cascade-engine/go.mod services/cascade-engine/go.sum* ./
+RUN go mod download
+COPY services/cascade-engine/ ./
+RUN go build -o /cascade-engine .
+
+FROM alpine:3.19
 WORKDIR /app
-COPY services/cascade-engine/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-# Service code lands in /app; content/ is mounted at the path the code expects
-# (parents[2] from /app/services/cascade-engine -> /). Recreate that layout:
-COPY services/cascade-engine/ /app/services/cascade-engine/
+COPY --from=build /cascade-engine /app/cascade-engine
 COPY content/ /app/content/
-WORKDIR /app/services/cascade-engine
-CMD ["python", "app.py"]
+ENV CONTENT_DIR=/app/content
+EXPOSE 8090
+CMD ["/app/cascade-engine"]
