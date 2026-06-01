@@ -1076,10 +1076,16 @@ git add -A && git commit -m "feat: Blind Refactor MVP — dependency mapper, cod
 
 **Goal:** Two users can match, duel, and get scored on their system designs.
 
-### Step 5.1: WebSocket Duel State Machine (Go)
+### Step 5.1: WebSocket Duel State Machine
+
+> **Implementation note:** the original plan sketched Arena in Go (below). The
+> shipped implementation is **Python/FastAPI** (`services/arena-engine/app.py` +
+> `league.py`) using FastAPI's native WebSockets — same language as the other
+> engines, simpler to run/test/debug. The Go sketch is kept for reference; see
+> `docs/tech-stack.md` for the authoritative stack.
 
 ```go
-// services/arena-engine/duel.go
+// services/arena-engine/duel.go  (original Go sketch — see note above; actual impl is Python)
 package main
 
 import (

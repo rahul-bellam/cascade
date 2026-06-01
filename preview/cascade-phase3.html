@@ -1,0 +1,89 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cascade — Phase 3 UI preview</title>
+<style>
+:root{--bg:#0F172A;--surface:#1E293B;--surface2:#272F42;--border:#475569;--fg:#F8FAFC;--muted:#94A3B8;--cascade:#2563eb;--cascade-l:#60a5fa}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font-family:'Fira Sans',ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif}
+.mono{font-family:'Fira Code',ui-monospace,Menlo,Consolas,monospace}
+.wrap{max-width:1100px;margin:0 auto;padding:24px}
+.head{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.ico{display:grid;place-items:center;height:36px;width:36px;border-radius:10px;background:rgba(37,99,235,.2);color:var(--cascade-l)}
+.grid{display:grid;grid-template-columns:3fr 2fr;gap:20px}
+.lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
+.card{border:1px solid var(--border);border-radius:14px;background:rgba(30,41,59,.7);padding:18px}
+.map{border:1px solid var(--border);border-radius:14px;background:rgba(30,41,59,.4);padding:8px;overflow:auto}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600}
+.b-crit{background:rgba(239,68,68,.15);color:#fca5a5}
+.b-med{background:rgba(245,158,11,.15);color:#fcd34d}
+.ta{width:100%;height:90px;padding:12px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);color:var(--fg);font-size:14px;outline:none}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:10px;border:none;font-weight:600;background:var(--cascade);color:#fff;cursor:pointer}
+.btn2{background:var(--surface2);border:1px solid var(--border);color:var(--fg)}
+.tk{display:inline-flex;gap:4px;font-size:12px;padding:4px 8px;border-radius:8px;background:#1d4ed8;color:#fff}
+.hint{display:flex;gap:8px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:8px;color:#fcd34d;font-size:14px;margin-top:8px}
+.chain{border:1px solid var(--border);border-radius:10px;background:rgba(30,41,59,.6);padding:12px;font-size:14px;margin-bottom:8px}
+.note{font-size:12px;color:var(--muted);margin-top:6px}
+text{font-family:'Fira Code',monospace}
+</style></head><body>
+<div class="wrap">
+  <div class="head">
+    <span class="ico">⚡</span>
+    <div><div class="mono" style="font-size:20px;font-weight:600">Rate Limiter</div>
+      <div style="font-size:14px;color:var(--muted)">Fix one issue — your fix spawns the next failure. Survive the chain.</div></div>
+  </div>
+  <div class="grid">
+    <div>
+      <p class="lbl">Failure map</p>
+      <div class="map">
+        <svg width="820" height="360" role="img" aria-label="Failure map">
+          <defs>
+            <marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#475569"/></marker>
+            <marker id="ag" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#10B981"/></marker>
+          </defs>
+          <!-- traversed (green) -->
+          <line x1="92" y1="192" x2="142" y2="36" stroke="#10B981" stroke-width="3" marker-end="url(#ag)"/>
+          <line x1="206" y1="36" x2="292" y2="114" stroke="#10B981" stroke-width="3" marker-end="url(#ag)"/>
+          <line x1="356" y1="114" x2="442" y2="192" stroke="#10B981" stroke-width="3" marker-end="url(#ag)"/>
+          <line x1="506" y1="192" x2="592" y2="114" stroke="#10B981" stroke-width="3" marker-end="url(#ag)"/>
+          <!-- some inactive edges -->
+          <line x1="206" y1="36" x2="292" y2="270" stroke="#334155" stroke-width="1.25" opacity=".5" marker-end="url(#a)"/>
+          <line x1="92" y1="192" x2="142" y2="192" stroke="#334155" stroke-width="1.25" opacity=".5" marker-end="url(#a)"/>
+          <line x1="92" y1="192" x2="142" y2="348" stroke="#334155" stroke-width="1.25" opacity=".5" marker-end="url(#a)"/>
+          <!-- nodes helper -->
+          <!-- origin -->
+          <g><rect x="28" y="176" width="112" height="32" rx="8" fill="#1E293B" stroke="#10B981" stroke-width="1.5"/><text x="46" y="196" font-size="10" fill="#E2E8F0">origin</text></g>
+          <!-- redis_spof (visited) -->
+          <g><rect x="142" y="20" width="112" height="32" rx="8" fill="#1E293B" stroke="#10B981"/><circle cx="152" cy="36" r="3.5" fill="#EF4444"/><text x="162" y="40" font-size="10" fill="#E2E8F0">redis SPOF</text></g>
+          <!-- memory (visited) -->
+          <g><rect x="292" y="98" width="112" height="32" rx="8" fill="#1E293B" stroke="#10B981"/><circle cx="302" cy="114" r="3.5" fill="#F59E0B"/><text x="312" y="118" font-size="10" fill="#E2E8F0">OOM</text></g>
+          <!-- distributed_inconsistency = CURRENT (red) -->
+          <g><circle cx="466" cy="192" r="30" fill="none" stroke="#EF4444" opacity=".5"/><rect x="442" y="176" width="112" height="32" rx="8" fill="rgba(239,68,68,.16)" stroke="#EF4444" stroke-width="2.5"/><circle cx="452" cy="192" r="3.5" fill="#F97316"/><text x="462" y="196" font-size="10" fill="#FCA5A5">multi-region</text></g>
+          <!-- terminal stable -->
+          <g><rect x="592" y="98" width="112" height="32" rx="8" fill="rgba(16,185,129,.18)" stroke="#10B981"/><text x="606" y="118" font-size="10" fill="#E2E8F0">✓ stable</text></g>
+          <!-- a couple greyed -->
+          <g><rect x="142" y="176" width="112" height="32" rx="8" fill="#1E293B" stroke="#475569"/><circle cx="152" cy="192" r="3.5" fill="#F59E0B"/><text x="162" y="196" font-size="10" fill="#94A3B8">race</text></g>
+          <g><rect x="142" y="332" width="112" height="32" rx="8" fill="#1E293B" stroke="#475569"/><circle cx="152" cy="348" r="3.5" fill="#64748B"/><text x="162" y="352" font-size="10" fill="#94A3B8">1-node cap</text></g>
+        </svg>
+      </div>
+      <p class="lbl" style="margin-top:16px">Your chain (3)</p>
+      <div class="chain"><div style="color:var(--muted);font-size:12px;margin-bottom:4px"><span class="mono">step 1</span> &nbsp;<span class="badge b-crit">⚡ Critical</span></div>
+        Redis crashes at 2:47 AM. All limits lost. 50k requests bypass before recovery.
+        <div style="color:var(--cascade-l);margin-top:4px">→ your fix: <i>add redis sentinel with replica failover</i></div>
+        <div style="color:#fcd34d;margin-top:2px">↓ triggered <span class="mono">memory_exhaustion</span></div></div>
+    </div>
+    <div>
+      <div class="card">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><span class="badge b-crit">⚡ Critical</span><span style="font-size:12px;color:var(--muted)">consistency</span><span class="mono" style="margin-left:auto;font-size:12px;color:var(--muted)">distributed_inconsistency</span></div>
+        <p style="font-size:18px;line-height:1.5;margin:0 0 16px">Multi-region. A user shifts US-East → EU-West. Their counter resets: 190 allowed instead of 100.</p>
+        <div style="background:rgba(37,99,235,.1);border:1px solid rgba(29,78,216,.5);border-radius:10px;padding:10px;margin-bottom:12px">
+          <div style="font-size:12px;color:#bfdbfe;margin-bottom:6px">🧰 From your Toolkit</div>
+          <span class="tk">★ token_bucket</span> &nbsp;<span class="tk" style="background:var(--surface2);color:#cbd5e1">cache_with_redis</span>
+        </div>
+        <label style="font-size:12px;color:var(--muted)">Describe your fix</label>
+        <textarea class="ta">use crdt counters to merge counts globally</textarea>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="btn">Apply fix ↳</button><button class="btn btn2">💡 Hint 1/3</button></div>
+        <div class="hint">💡 <span><span style="opacity:.7">L1.</span> Each region keeps its own count. What does the user experience?</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="note">Preview of the Phase-3 Cascade UI (ui-ux-pro-max design system: Dark/OLED, slate + status colors, Fira typography, severity = color+icon+text, DAG process-map color semantics, accessible chain-list fallback).</p>
+</div>
+</body></html>

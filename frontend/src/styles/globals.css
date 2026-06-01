@@ -1,14 +1,51 @@
+/* Fira Code + Fira Sans (skill typography pick for technical/data products).
+   font-display swap per skill performance guidance. External fonts won't load
+   in the sandboxed preview iframe, so the Tailwind stack falls back to
+   system-ui/monospace gracefully. */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
+/* Semantic color tokens — Dark Mode (OLED) per the skill design system.
+   rgb triplets so Tailwind's <alpha-value> works. */
+:root {
+  --bg: 15 23 42;          /* slate-900 #0F172A */
+  --surface: 30 41 59;     /* slate-800 #1E293B */
+  --surface-2: 39 47 66;   /* muted #272F42 */
+  --border: 71 85 105;     /* slate-600 #475569 */
+  --fg: 248 250 252;       /* #F8FAFC */
+  --muted: 148 163 184;    /* slate-400 #94A3B8 */
+}
+
+html, body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-    Ubuntu, Cantarell, sans-serif;
+  background: rgb(var(--bg));
+  color: rgb(var(--fg));
+  font-family: 'Fira Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-* {
-  box-sizing: border-box;
+* { box-sizing: border-box; }
+
+/* Accessibility: always-visible focus ring (skill rule: never remove focus). */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
+
+/* Accessibility: respect reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Thin scrollbars for the dark surfaces. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 6px; }
+::-webkit-scrollbar-track { background: transparent; }

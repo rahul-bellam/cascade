@@ -28,12 +28,13 @@ test: test-go test-python test-frontend
 test-go:
 	cd services/auth && go test ./... 2>/dev/null || true
 	cd services/constraint-engine && CONTENT_DIR=$(PWD)/content go test ./... 2>/dev/null || true
-	cd services/arena-engine && go test ./... 2>/dev/null || true
+	cd services/user && go test ./... 2>/dev/null || true
 
 test-python:
 	cd services/learn-engine && python -m pytest tests/ 2>/dev/null || true
 	cd services/cascade-engine && python -m pytest tests/ 2>/dev/null || true
 	cd services/refactor-engine && python -m pytest tests/ 2>/dev/null || true
+	cd services/arena-engine && python -m pytest tests/ 2>/dev/null || true
 
 test-frontend:
 	cd frontend && npm run test 2>/dev/null || true
@@ -43,12 +44,13 @@ lint: lint-go lint-python lint-frontend
 lint-go:
 	cd services/auth && go vet ./... 2>/dev/null || true
 	cd services/constraint-engine && go vet ./... 2>/dev/null || true
-	cd services/arena-engine && go vet ./... 2>/dev/null || true
+	cd services/user && go vet ./... 2>/dev/null || true
 
 lint-python:
 	cd services/learn-engine && python -m flake8 . 2>/dev/null || true
 	cd services/cascade-engine && python -m flake8 . 2>/dev/null || true
 	cd services/refactor-engine && python -m flake8 . 2>/dev/null || true
+	cd services/arena-engine && python -m flake8 . 2>/dev/null || true
 
 lint-frontend:
 	cd frontend && npm run lint 2>/dev/null || true
@@ -64,10 +66,10 @@ clean:
 db-reset:
 	docker-compose up -d postgres
 	sleep 3
-	PGPASSWORD=cascade_dev psql -h localhost -U postgres -d cascade -f scripts/reset-db.sql
+	bash scripts/run-migrations.sh
 
 schema:
-	PGPASSWORD=cascade_dev psql -h localhost -U postgres -d cascade -f scripts/schema.sql
+	bash scripts/run-migrations.sh
 
 seed:
 	python scripts/seed-content.py

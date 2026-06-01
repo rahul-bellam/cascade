@@ -127,6 +127,31 @@ def archetypes() -> dict:
     return {"archetypes": [{"slug": dag.slug, "name": dag.name}]}
 
 
+@app.get("/cascade/graph/{archetype}")
+def graph(archetype: str) -> dict:
+    """Full DAG (nodes + edges) so the client can render the failure map."""
+    try:
+        dag = dagmod.load_dag(archetype)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=404, detail=f"No DAG for '{archetype}': {e}")
+    nodes, edges = [], []
+    for nid, n in dag.nodes.items():
+        nodes.append({
+            "id": nid,
+            "type": n.get("type"),
+            "severity": n.get("severity"),
+            "category": n.get("category"),
+            "outcome": n.get("outcome"),
+            "description": n.get("description"),
+        })
+        for t in n.get("transitions", []):
+            edges.append({"from": nid, "to": t["to"], "weight": t.get("weight", 1.0)})
+    return {
+        "archetype": dag.slug, "name": dag.name, "start": dag.start,
+        "first_issue": dag.first_node(), "nodes": nodes, "edges": edges,
+    }
+
+
 @app.post("/cascade/start")
 def start(req: StartReq) -> dict:
     try:
@@ -214,6 +239,7 @@ def submit_fix(sid: str, req: FixReq) -> dict:
         "from_node": from_node,
         "next": _node_view(dag, to_node, 0, s["user_id"]),
         "edge_reason": edge["reason"],
+        "candidates": edge.get("candidates", []),
         "depth": s["depth"],
         "status": s["status"],
     }
@@ -251,7 +277,9 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", "8090"))
     uvicorn.run("app:app", host="0.0.0.0", port=port, reload=False)
 
+
 @app.get("/cascade/{sid}/dag")
-def get_dag(sid: str) -> dict:
+def get_session_dag(sid: str) -> dict:
+    """Raw DAG for the current session's archetype (remote-merge: session-scoped graph)."""
     s, dag = _require(sid)
     return dag.data

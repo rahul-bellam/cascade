@@ -25,6 +25,7 @@ export const learnApi = {
 };
 
 export const cascadeApi = {
+  graph: (archetype: string) => fetch(`${CASCADE}/cascade/graph/${archetype}`).then(j<any>),
   start: (archetype: string, userId: string) =>
     fetch(`${CASCADE}/cascade/start`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

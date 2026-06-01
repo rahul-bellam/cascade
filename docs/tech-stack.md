@@ -77,10 +77,8 @@
 | **User Service** | Profiles, progress, stats, toolkit | `chi`, `pgx` |
 | **Content Service** | Lessons, scenarios, hints, solutions | `chi`, `pgx` |
 | **Constraint Unlock Engine** | Scaling challenge generation + simulation | `chi`, `docker/docker` |
-| **Arena Engine** | Matchmaking, duel state, scoring, replay | `gorilla/websocket`, `redis/go-redis` |
-| **Simulation Orchestrator** | Container management, load testing | `docker/docker`, `k6` integration |
 
-**Why Go?** Fast startup, excellent concurrency for WebSocket handling, small binaries.
+**Why Go?** Fast startup, small binaries, and CPU-bound load simulation for Constraint Unlock.
 
 ### 3.2 Python Services
 
@@ -89,8 +87,13 @@
 | **Learn Engine** | Lesson delivery, snippet validation | `FastAPI`, `pytest` (for test runner) |
 | **Cascade Engine** | DAG walker, fix analyzer, issue generator | `FastAPI`, `ast` (AST parser) |
 | **Blind Refactor Engine** | Codebase analysis, dependency mapping, refactor validation | `FastAPI`, `ast`, `networkx` (graph analysis) |
+| **Arena + League Engine** | WebSocket duels, matchmaking, ELO, seasons, divisions | `FastAPI` (native WebSockets), `pydantic` |
 
-**Why Python?** Rich AST parsing, `networkx` for graph analysis, faster prototyping of the core IP.
+**Why Python?** Rich AST parsing, `networkx` for graph analysis, and faster prototyping of
+the core IP. **Arena/League** also live here (not Go as originally sketched): FastAPI's native
+WebSocket support is sufficient for the duel loop, and keeping Arena in the same language as the
+other engines makes the platform easier to run, test, and debug. Revisit Go only if duel
+concurrency ever becomes a measured bottleneck.
 
 ---
 

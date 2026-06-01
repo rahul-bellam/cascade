@@ -11,6 +11,8 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
+import { SeverityBadge } from '../ui/SeverityBadge';
+import { IconBolt, IconLightbulb, IconToolbox, IconShield, IconSkull, IconRefresh, IconSpinner } from '../ui/icons';
 
 const USER_ID = 'demo-user';
 
@@ -186,7 +188,7 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
       <header className="flex-none px-6 py-4 border-b border-[#334155] bg-[#0F172A] flex justify-between items-center shadow-md z-10">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-bold font-mono tracking-tight flex items-center gap-2">
-            <span className="text-[#22C55E]">⚡</span> Cascade Engine
+            <IconBolt width={18} height={18} className="text-success" /> Cascade Engine
           </h1>
           <span className="text-sm bg-[#1A1E2F] px-3 py-1 rounded text-[#F8FAFC] border border-[#334155]">
             {name || archetype}
@@ -214,9 +216,7 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-xs font-mono uppercase text-[#F8FAFC]/50 tracking-widest">Current Issue</h2>
-                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${SEV_COLORS[node.severity] || 'bg-[#1E293B]'}`}>
-                    {node.severity || node.type}
-                  </span>
+                  <SeverityBadge severity={node.severity || node.type} />
                 </div>
                 
                 <div className="bg-[#020617] p-4 rounded-lg border border-[#334155]">
@@ -239,7 +239,7 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
               {node.suggested_toolkit?.length > 0 && (
                 <div className="space-y-2">
                   <h2 className="text-xs font-mono uppercase text-[#F8FAFC]/50 tracking-widest flex items-center gap-2">
-                    <span>🧰</span> Toolkit Suggestions
+                    <IconToolbox width={13} height={13} /> Toolkit Suggestions
                   </h2>
                   <div className="flex flex-wrap gap-2">
                     {node.suggested_toolkit.map((t: any, i: number) => (
@@ -253,7 +253,7 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
                         }`}
                         title={t.code}
                       >
-                        {t.relevant && '⭐ '}{t.toolkit_key}
+                        {t.relevant && '★ '}{t.toolkit_key}
                       </button>
                     ))}
                   </div>
@@ -276,14 +276,14 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
                     disabled={busy || !fix.trim()}
                     className="flex-1 px-4 py-2 bg-[#22C55E] hover:bg-[#22C55E]/90 text-[#020617] rounded-lg font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {busy ? 'Evaluating...' : 'Apply Fix'}
+                    {busy ? <span className="inline-flex items-center gap-1.5"><IconSpinner width={14} height={14}/> Evaluating…</span> : 'Apply Fix'}
                   </button>
                   <button 
                     onClick={revealHint} 
                     disabled={hintLevel >= (node.hint_count || 0)}
                     className="px-4 py-2 bg-[#1E293B] border border-[#334155] hover:bg-[#334155] rounded-lg text-sm font-medium disabled:opacity-40 transition-colors"
                   >
-                    💡 Hint ({hintLevel}/{node.hint_count || 0})
+                    <IconLightbulb width={14} height={14} className="inline mr-1" /> Hint ({hintLevel}/{node.hint_count || 0})
                   </button>
                 </div>
               </div>
@@ -293,7 +293,7 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
                 <div className="space-y-2 mt-4 bg-[#1E293B]/50 p-4 rounded-lg border border-[#334155]">
                   {hints.map((h, i) => (
                     <div key={i} className="text-sm flex gap-2">
-                      <span className="text-amber-400">💡</span> 
+                      <IconLightbulb width={14} height={14} className="text-amber-400 mt-0.5 shrink-0" /> 
                       <span className="text-[#F8FAFC]/90">{h.text}</span>
                     </div>
                   ))}
@@ -351,7 +351,7 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
             <div className="absolute inset-0 bg-[#020617]/80 backdrop-blur-sm flex items-center justify-center z-50">
               <div className="bg-[#0F172A] border border-[#334155] p-8 rounded-xl max-w-2xl w-full shadow-2xl">
                 <div className="text-center mb-8">
-                  <div className="text-6xl mb-4">{done.status === 'survived' ? '🏆' : '💀'}</div>
+                  <div className="flex justify-center mb-4">{done.status === 'survived' ? <IconShield width={48} height={48} className="text-success"/> : <IconSkull width={48} height={48} className="text-danger"/>}</div>
                   <h2 className="text-3xl font-bold mb-2">
                     {done.status === 'survived' ? 'System Stabilized' : 'Catastrophic Failure'}
                   </h2>

@@ -39,6 +39,7 @@ python scripts/smoke_learn.py        # Learn: lesson -> submit -> toolkit
 python scripts/smoke_cascade.py      # Cascade: problem -> fix -> ... -> survived
 python scripts/smoke_constraint.py   # Constraint: origin -> scale through 3 levels
 python scripts/smoke_phase2.py       # Toolkit earned in Learn appears in Constraint + Cascade
+python scripts/smoke_phase3.py       # Cascade DAG graph + weighted transitions + post-mortem
 python scripts/smoke_fullstack.py    # frontend proxy -> both engines
 ```
 

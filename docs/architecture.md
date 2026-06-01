@@ -49,8 +49,8 @@
 ├──────────────┬──────────────┬──────────────┬────────────┬───────────────┤
 │  LEARN       │  CONSTRAINT  │  BLIND       │  CASCADE   │  ARENA        │
 │  ENGINE      │  UNLOCK      │  REFACTOR    │  ENGINE    │  ENGINE       │
-│  (Python)    │  ENGINE (Go) │  ENGINE      │  (Python)  │  (Go)         │
-│              │              │  (Python)    │            │               │
+│  (Python)    │  ENGINE (Go) │  ENGINE      │  (Python)  │  (Python)     │
+│              │              │  (Python)    │            │  + League     │
 │  Lesson      │  Monolith    │  Codebase    │  DAG       │  Matchmaking  │
 │  Player      │  Generator   │  Analyzer    │  Walker    │  Duel State   │
 │  Snippet     │  Constraint  │  Dependency  │  Fix       │  Scoring      │

@@ -112,14 +112,21 @@ class Dag:
                 return trans[0]["to"]
         return nid
 
-    def resolve_transition(self, node_id: str, fix_text: str) -> dict:
+    def resolve_transition(self, node_id: str, fix_text: str, rng=None) -> dict:
         """Given a fix at node_id, return the next edge.
 
-        Strategy: evaluate edges in declared order; the first whose condition is
-        satisfied wins. Conditions are the spec's design intent ("if you fixed it
-        this way, here's the failure that follows"). Falls back to the
-        highest-weight edge if none match (the cascade always continues).
+        Strategy: evaluate every edge; collect those whose condition is satisfied
+        ("if you fixed it this way, here's the family of failures that follows").
+        Among the matched edges, pick one via *weighted random selection* so the
+        same fix can lead to different downstream failures across runs — the
+        "roguelike variety" the spec calls for. Falls back to the un-conditioned
+        / highest-weight edges if none match (the cascade always continues).
+
+        Pass a seeded `random.Random` via `rng` for deterministic tests.
         """
+        import random as _random
+
+        rng = rng or _random
         node = self.node(node_id)
         ctx = FixContext(fix_text)
         edges = node.get("transitions", [])
@@ -134,16 +141,26 @@ class Dag:
                 continue
 
         if matched:
-            # Prefer the matched edge with the highest weight (most likely outcome).
-            chosen = max(matched, key=lambda e: e.get("weight", 0))
-            reason = "condition_matched"
+            pool, reason = matched, "condition_matched"
         elif edges:
-            chosen = max(edges, key=lambda e: e.get("weight", 0))
-            reason = "fallback_highest_weight"
+            pool, reason = edges, "fallback"
         else:
             raise ValueError(f"Node '{node_id}' has no outgoing transitions")
 
-        return {"to": chosen["to"], "condition": chosen.get("condition"), "reason": reason}
+        if len(pool) == 1:
+            chosen = pool[0]
+        else:
+            weights = [max(0.0, float(e.get("weight", 1.0))) for e in pool]
+            if sum(weights) <= 0:
+                weights = [1.0] * len(pool)
+            chosen = rng.choices(pool, weights=weights, k=1)[0]
+
+        return {
+            "to": chosen["to"],
+            "condition": chosen.get("condition"),
+            "reason": reason,
+            "candidates": [e["to"] for e in pool],
+        }
 
 
 _cache: dict[str, Dag] = {}
