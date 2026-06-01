@@ -5,6 +5,7 @@ import os
 import uuid
 import time
 from dep_mapper import DependencyMapper
+from requirements import RequirementInjector
 
 app = FastAPI(title="Refactor Engine")
 
@@ -104,6 +105,34 @@ def get_file(sid: str, path: str = Query(...)):
     s = sessions[sid]
     content = mapper.get_file_content(s["path"], path)
     return {"path": path, "content": content}
+
+@ app.post("/refactor/{sid}/newreq")
+def new_requirement(sid: str):
+    s = sessions.get(sid)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    inj = RequirementInjector(s["codebase"])
+    req = inj.get_requirement()
+
+    s["active_requirement"] = req
+    return {"requirement": req}
+
+@ app.post("/refactor/{sid}/newreq/submit")
+def submit_accommodation(sid: str):
+    s = sessions.get(sid)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if "active_requirement" not in s:
+        raise HTTPException(status_code=400, detail="No active requirement. Call /newreq first.")
+
+    graph = mapper.map_codebase(s["path"])
+    inj = RequirementInjector(s["codebase"])
+    result = inj.evaluate_accommodation(graph)
+
+    s["accommodation_result"] = result
+    return result
 
 if __name__ == "__main__":
     import uvicorn

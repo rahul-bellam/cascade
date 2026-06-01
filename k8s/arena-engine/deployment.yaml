@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: arena-engine
+  namespace: cascade
+  labels:
+    app: arena-engine
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: arena-engine
+  template:
+    metadata:
+      labels:
+        app: arena-engine
+    spec:
+      containers:
+        - name: arena
+          image: cascade/arena-engine:latest
+          ports:
+            - containerPort: 8096
+          resources:
+            requests: { cpu: "250m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+          livenessProbe:
+            httpGet: { path: /health, port: 8096 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: arena-engine
+  namespace: cascade
+spec:
+  selector:
+    app: arena-engine
+  ports:
+    - port: 8096
+      targetPort: 8096
+  type: ClusterIP

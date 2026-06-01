@@ -67,6 +67,32 @@ services:
       CASCADE_ENGINE_URL: http://cascade-engine:8090
     depends_on: [cascade-engine]
 
+  auth:
+    build:
+      context: .
+      dockerfile: services/auth/Dockerfile
+    ports: ["8081:8081"]
+
+  user:
+    build:
+      context: .
+      dockerfile: services/user/Dockerfile
+    ports: ["8082:8082"]
+
+  arena-engine:
+    build:
+      context: .
+      dockerfile: services/arena-engine/Dockerfile
+    ports: ["8096:8096"]
+
+  refactor-engine:
+    build:
+      context: .
+      dockerfile: services/refactor-engine/Dockerfile
+    ports: ["8095:8095"]
+    volumes:
+      - ./content:/app/content
+
 volumes:
   pgdata:
   minio_data:

@@ -64,11 +64,16 @@ class DependencyMapper:
                 graph["files"][rel_path] = file_info
         
         # Compute coupling metrics
-        graph["metrics"]["total_files"] = len(graph["files"])
-        graph["metrics"]["total_functions"] = sum(
-            len(f["functions"]) for f in graph["files"].values()
-        )
+        total_files = len(graph["files"])
+        total_functions = sum(len(f["functions"]) for f in graph["files"].values())
+        total_imports = sum(len(f["imports"]) for f in graph["files"].values())
+        
+        avg_coupling = total_imports / max(total_files, 1)
+        
+        graph["metrics"]["total_files"] = total_files
+        graph["metrics"]["total_functions"] = total_functions
         graph["metrics"]["total_global_state"] = len(graph["global_state"])
+        graph["metrics"]["avg_coupling"] = round(avg_coupling, 2)
         graph["metrics"]["god_functions"] = list(set(
             graph["metrics"].get("god_functions", [])
         ))

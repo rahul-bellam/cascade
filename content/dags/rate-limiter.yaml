@@ -22,6 +22,10 @@ nodes:
   - id: origin
     type: starting_state
     description: "In-memory counter on a single Flask server. No persistence. No HA. No atomicity."
+    expected_failures:
+      - "What happens to rate limit counters on server restart?"
+      - "How does the system behave under concurrent requests?"
+      - "What limits throughput when traffic grows?"
     transitions:
       - to: no_persistence
         weight: 1.0
@@ -32,6 +36,10 @@ nodes:
     category: data_loss
     description: "Server restart = counters lost. Attackers trigger restarts for unlimited access."
     concern_ids: [21, 24]
+    expected_failures:
+      - "Will Redis become a single point of failure?"
+      - "Will concurrent requests race on the counter?"
+      - "Will the single Redis node become a bottleneck?"
     expected_reasoning:
       diagnosis: ["no persistence", "restart loses counters", "in memory state"]
       tradeoffs: ["adds latency per request", "cache miss still falls back to db", "redis operational overhead"]
@@ -55,6 +63,10 @@ nodes:
     category: availability
     description: "Redis crashes at 2:47 AM. All limits lost. 50k requests bypass before recovery."
     concern_ids: [43, 115, 122]
+    expected_failures:
+      - "Will memory grow unbounded and cause evictions?"
+      - "Will a network partition create split-brain?"
+      - "Will the fallback path degrade performance?"
     expected_reasoning:
       diagnosis: ["single point of failure", "redis is the bottleneck", "no high availability"]
       tradeoffs: ["ha adds cost and ops complexity", "fallback risks over permitting", "sentinel adds failover delay"]

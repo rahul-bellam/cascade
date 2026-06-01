@@ -65,6 +65,14 @@ type Session struct {
 	HintsUsed        int
 	HintsRevealedHere int
 	Status           string
+
+	Mode              string  // "cascade" | "predict"
+	Phase             string  // for predict mode: "predict" | "insight" | "implement" | "complete"
+	PredictionText    string
+	PredictionScore   float64
+	PredictedNode     string
+	PredictedNodes    []map[string]any  // all reachable nodes for prediction
+	PredictRound      int
 }
 
 type PathEntry struct {
@@ -544,6 +552,369 @@ func scoreKeywords(text string, expected []string) float64 {
 	return float64(hits) / float64(len(expected))
 }
 
+// ── Predict & Resolve mode ──────────────────────────────────────────────────
+
+func scorePrediction(prediction string, dag *Dag, currentNodeID string) (bestScore float64, matchedNode string, candidates []map[string]any) {
+	norm := strings.ToLower(prediction)
+	currentNode, err := dag.Node(currentNodeID)
+	if err != nil {
+		return 0, "", nil
+	}
+
+	bestScore = 0
+	matchedNode = ""
+
+	for _, t := range currentNode.Transitions {
+		targetNode, err := dag.Node(t.To)
+		if err != nil {
+			continue
+		}
+		targetDesc := strings.ToLower(targetNode.Description)
+		targetCat := strings.ToLower(targetNode.Category)
+
+		score := 0.0
+		descWords := strings.Fields(targetDesc)
+		for _, w := range descWords {
+			if len(w) > 3 && strings.Contains(norm, w) {
+				score += 1.0
+			}
+		}
+		if targetCat != "" && strings.Contains(norm, targetCat) {
+			score += 3.0
+		}
+
+		denom := float64(len(descWords) + 3)
+		if denom > 0 {
+			score /= denom
+		}
+		score = score * 100
+
+		candidates = append(candidates, map[string]any{
+			"node_id":     t.To,
+			"description": targetNode.Description,
+			"category":    targetNode.Category,
+			"score":       round1f(score),
+		})
+
+		if score > bestScore {
+			bestScore = score
+			matchedNode = t.To
+		}
+	}
+
+	return
+}
+
+func predictStartHandler(w http.ResponseWriter, r *http.Request) {
+	var req startReq
+	json.NewDecoder(r.Body).Decode(&req)
+	if req.Archetype == "" {
+		req.Archetype = "rate-limiter"
+	}
+	if req.UserID == "" {
+		req.UserID = "demo-user"
+	}
+	dag, err := loadDag(req.Archetype)
+	if err != nil {
+		writeJSON(w, 404, map[string]string{"error": fmt.Sprintf("No DAG for '%s': %s", req.Archetype, err.Error())})
+		return
+	}
+	first := dag.FirstNode()
+	sid := newID()
+
+	firstNode, _ := dag.Node(first)
+
+	sessMu.Lock()
+	sessions[sid] = &Session{
+		ID: sid, UserID: req.UserID, Archetype: dag.Data.Slug,
+		CurrentNode: first, Status: "active",
+		Mode: "predict", Phase: "predict", PredictRound: 1,
+	}
+	sessMu.Unlock()
+
+	writeJSON(w, 200, map[string]any{
+		"session_id": sid,
+		"archetype":  dag.Data.Slug,
+		"name":       dag.Data.Name,
+		"phase":      "predict",
+		"round":      1,
+		"current":    nodeView(dag, first, 0, req.UserID),
+		"expected_failures": firstNode.ExpectedFailures,
+	})
+}
+
+func predictCurrentHandler(w http.ResponseWriter, r *http.Request, sid string) {
+	s, dag, err := requireSession(sid)
+	if err != nil {
+		writeJSON(w, 404, map[string]string{"error": err.Error()})
+		return
+	}
+	if s.Mode != "predict" {
+		writeJSON(w, 400, map[string]string{"error": "not a predict session"})
+		return
+	}
+	n, _ := dag.Node(s.CurrentNode)
+	writeJSON(w, 200, map[string]any{
+		"session_id":  sid,
+		"status":      s.Status,
+		"phase":       s.Phase,
+		"round":       s.PredictRound,
+		"depth":       s.Depth,
+		"hints_used":  s.HintsUsed,
+		"current":     nodeView(dag, s.CurrentNode, s.HintsRevealedHere, s.UserID),
+		"expected_failures": n.ExpectedFailures,
+	})
+}
+
+type predictReq struct {
+	Prediction string `json:"prediction"`
+}
+
+func predictHandler(w http.ResponseWriter, r *http.Request, sid string) {
+	s, dag, err := requireSession(sid)
+	if err != nil {
+		writeJSON(w, 404, map[string]string{"error": err.Error()})
+		return
+	}
+	if s.Mode != "predict" || s.Phase != "predict" {
+		writeJSON(w, 400, map[string]string{"error": "session not in predict phase"})
+		return
+	}
+
+	var req predictReq
+	json.NewDecoder(r.Body).Decode(&req)
+
+	score, matched, candidates := scorePrediction(req.Prediction, dag, s.CurrentNode)
+
+	s.PredictionText = req.Prediction
+	s.PredictionScore = score
+	s.PredictedNode = matched
+	s.Phase = "insight"
+
+	writeJSON(w, 200, map[string]any{
+		"session_id":    sid,
+		"phase":         "insight",
+		"phase_label":   "Reason about the problem",
+		"round":         s.PredictRound,
+		"prediction_score": round1f(score),
+		"best_match":    matched,
+		"candidates":    candidates,
+		"proceed_to":    "insight",
+	})
+}
+
+func predictInsightHandler(w http.ResponseWriter, r *http.Request, sid string) {
+	s, dag, err := requireSession(sid)
+	if err != nil {
+		writeJSON(w, 404, map[string]string{"error": err.Error()})
+		return
+	}
+	if s.Mode != "predict" || s.Phase != "insight" {
+		writeJSON(w, 400, map[string]string{"error": "session not in insight phase"})
+		return
+	}
+
+	n, err := dag.Node(s.CurrentNode)
+	if err != nil {
+		writeJSON(w, 404, map[string]string{"error": "node not found"})
+		return
+	}
+
+	var req insightReq
+	json.NewDecoder(r.Body).Decode(&req)
+
+	var sc insightScore
+	er := n.ExpectedReasoning
+	if er != nil {
+		sc = callInsightScorer(req, er)
+	} else {
+		sc = insightScore{
+			DiagnosisScore: 1.0,
+			TradeoffScore:  1.0,
+			ForesightScore: 1.0,
+			Total:          1.0,
+			Unlocked:       true,
+		}
+	}
+
+	s.Phase = "implement"
+
+	writeJSON(w, 200, map[string]any{
+		"session_id":      sid,
+		"phase":           "implement",
+		"phase_label":     "Implement the fix",
+		"round":           s.PredictRound,
+		"insight_score":   sc,
+		"proceed_to":      "implement",
+	})
+}
+
+func predictFixHandler(w http.ResponseWriter, r *http.Request, sid string) {
+	s, dag, err := requireSession(sid)
+	if err != nil {
+		writeJSON(w, 404, map[string]string{"error": err.Error()})
+		return
+	}
+	if s.Mode != "predict" || s.Phase != "implement" {
+		writeJSON(w, 400, map[string]string{"error": "session not in implement phase"})
+		return
+	}
+
+	var req fixReq
+	json.NewDecoder(r.Body).Decode(&req)
+
+	fromNode := s.CurrentNode
+	edge, err := dag.ResolveTransition(fromNode, req.Fix, nil)
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	toNode := edge.To
+
+	s.Path = append(s.Path, PathEntry{
+		From:   fromNode,
+		Fix:    req.Fix,
+		To:     toNode,
+		Reason: "predict_" + edge.Reason,
+	})
+	s.CurrentNode = toNode
+	s.Depth++
+	s.HintsRevealedHere = 0
+
+	// Check if we hit the predicted node
+	predictionAccuracy := 0.0
+	if s.PredictedNode == toNode {
+		predictionAccuracy = 100.0
+	} else if s.PredictedNode != "" {
+		// Partial credit if the actual node was a candidate
+		for _, c := range edge.Candidates {
+			if s.PredictedNode == c {
+				predictionAccuracy = 50.0
+				break
+			}
+		}
+	}
+
+	// Telemetry
+	fixNorm := strings.ToLower(req.Fix)
+	var reachedForFirst string
+	var capabilitiesSeen []string
+	for _, cap := range knownCapabilities {
+		if strings.Contains(fixNorm, cap) {
+			capabilitiesSeen = append(capabilitiesSeen, cap)
+			if reachedForFirst == "" {
+				reachedForFirst = cap
+			}
+		}
+	}
+
+	entry := TelemetryEntry{
+		UserID:           s.UserID,
+		Mode:             "predict",
+		Archetype:        s.Archetype,
+		Node:             fromNode,
+		FixText:          req.Fix,
+		CapabilitiesSeen: capabilitiesSeen,
+		Outcome:          "active",
+		LedTo:            toNode,
+		HintsUsed:        s.HintsUsed,
+		ReachedForFirst:  reachedForFirst,
+		TS:               time.Now().UTC().Format(time.RFC3339),
+	}
+	if n, _ := dag.Node(fromNode); n != nil {
+		entry.ConcernIDs = n.ConcernIDs
+	}
+	teleMu.Lock()
+	telemetry = append(telemetry, entry)
+	teleMu.Unlock()
+
+	outcome := "active"
+	if dag.IsTerminal(toNode) {
+		n, _ := dag.Node(toNode)
+		outcome = "survived"
+		if n != nil && n.Outcome != "" {
+			outcome = n.Outcome
+		}
+		if outcome == "survived" {
+			s.Status = "survived"
+		} else {
+			s.Status = "failed"
+		}
+		s.Phase = "complete"
+	} else {
+		// Next round: back to predict for the new node
+		s.Phase = "predict"
+		s.PredictRound++
+		s.PredictionText = ""
+		s.PredictionScore = 0
+		s.PredictedNode = ""
+	}
+
+	actualNode, _ := dag.Node(toNode)
+	predictedNodeObj, _ := dag.Node(s.PredictedNode)
+	predictedDesc := ""
+	if predictedNodeObj != nil {
+		predictedDesc = predictedNodeObj.Description
+	}
+
+	writeJSON(w, 200, map[string]any{
+		"session_id":           sid,
+		"phase":                s.Phase,
+		"round":                s.PredictRound,
+		"from_node":            fromNode,
+		"to_node":              toNode,
+		"actual_description":   actualNode.Description,
+		"predicted_node":       s.PredictedNode,
+		"predicted_description": predictedDesc,
+		"prediction_accuracy":  round1f(predictionAccuracy),
+		"edge_reason":          edge.Reason,
+		"status":               s.Status,
+		"depth":                s.Depth,
+	})
+}
+
+func predictRouter(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.WriteHeader(204)
+		return
+	}
+	path := strings.TrimPrefix(r.URL.Path, "/predict/")
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+
+	if len(parts) == 1 && parts[0] == "start" && r.Method == http.MethodPost {
+		predictStartHandler(w, r)
+		return
+	}
+	if len(parts) >= 1 && parts[0] != "" {
+		sid := parts[0]
+		action := ""
+		if len(parts) > 1 {
+			action = parts[1]
+		}
+		switch {
+		case action == "" && r.Method == http.MethodGet:
+			predictCurrentHandler(w, r, sid)
+		case action == "predict" && r.Method == http.MethodPost:
+			predictHandler(w, r, sid)
+		case action == "insight" && r.Method == http.MethodPost:
+			predictInsightHandler(w, r, sid)
+		case action == "fix" && r.Method == http.MethodPost:
+			predictFixHandler(w, r, sid)
+		default:
+			writeJSON(w, 404, map[string]string{"error": "not found"})
+		}
+		return
+	}
+	writeJSON(w, 404, map[string]string{"error": "not found"})
+}
+
+func round1f(x float64) float64 {
+	return float64(int(x*10)) / 10
+}
+
 // ── Challenge-a-friend (Phase 5) ─────────────────────────────────────────────
 
 type challengeReq struct {
@@ -752,6 +1123,7 @@ func main() {
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/archetypes", archetypesHandler)
 	mux.HandleFunc("/cascade/", cascadeRouter)
+	mux.HandleFunc("/predict/", predictRouter)
 
 	addr := ":" + port
 	log.Printf("Cascade engine starting on %s", addr)

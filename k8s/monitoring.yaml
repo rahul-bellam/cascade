@@ -1,0 +1,183 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    scrape_configs:
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: 'cascade-.*|.*-engine|auth|user'
+          - source_labels: [__address__]
+            action: replace
+            regex: ([^:]+)(?::\d+)?
+            replacement: $1:9090
+            target_label: __address__
+      - job_name: 'cascade-services'
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - cascade-engine.cascade.svc.cluster.local:8090
+              - learn-engine.cascade.svc.cluster.local:8093
+              - constraint-engine.cascade.svc.cluster.local:8094
+              - insight-engine.cascade.svc.cluster.local:8097
+              - arena-engine.cascade.svc.cluster.local:8096
+              - refactor-engine.cascade.svc.cluster.local:8095
+              - auth.cascade.svc.cluster.local:8081
+              - user.cascade.svc.cluster.local:8082
+      - job_name: 'node-exporter'
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - replacement: node-exporter:9100
+            target_label: __address__
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.52.0
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=30d
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { cpu: "1", memory: "2Gi" }
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.0.0
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "cascade-admin"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_INSTALL_PLUGINS
+              value: "grafana-piechart-panel"
+          resources:
+            requests: { cpu: "128m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cascade-monitor
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchExpressions:
+      - { key: app, operator: In, values: [cascade-engine, learn-engine, constraint-engine, insight-engine, arena-engine, refactor-engine, auth, user] }
+  namespaceSelector:
+    matchNames:
+      - cascade
+  endpoints:
+    - port: http
+      interval: 15s
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  cascade-overview.json: |
+    {
+      "title": "Cascade Overview",
+      "panels": [
+        { "title": "Requests/sec", "type": "graph", "targets": [{ "expr": "sum(rate(http_requests_total[5m]))" }] },
+        { "title": "Error Rate", "type": "graph", "targets": [{ "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m]))" }] },
+        { "title": "P99 Latency", "type": "graph", "targets": [{ "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))" }] },
+        { "title": "Memory (GiB)", "type": "graph", "targets": [{ "expr": "sum(container_memory_working_set_bytes) / 1e9" }] },
+        { "title": "CPU Cores", "type": "graph", "targets": [{ "expr": "sum(rate(container_cpu_usage_seconds_total[5m]))" }] }
+      ],
+      "time": { "from": "now-1h", "to": "now" }
+    }

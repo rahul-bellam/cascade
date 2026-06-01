@@ -264,6 +264,7 @@ type DagNode struct {
 	Outcome           string              `yaml:"outcome,omitempty"`
 	ConcernIDs        []int               `yaml:"concern_ids,omitempty"`
 	ExpectedReasoning *ExpectedReasoning  `yaml:"expected_reasoning,omitempty"`
+	ExpectedFailures  []string            `yaml:"expected_failures,omitempty"`
 	Hints             []Hint              `yaml:"hints,omitempty"`
 	SolutionSignature *SolutionSignature  `yaml:"solution_signature,omitempty"`
 	Transitions       []DagTransition     `yaml:"transitions,omitempty"`

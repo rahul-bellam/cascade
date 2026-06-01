@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: refactor-engine
+  namespace: cascade
+  labels:
+    app: refactor-engine
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: refactor-engine
+  template:
+    metadata:
+      labels:
+        app: refactor-engine
+    spec:
+      containers:
+        - name: refactor
+          image: cascade/refactor-engine:latest
+          ports:
+            - containerPort: 8095
+          resources:
+            requests: { cpu: "250m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+          livenessProbe:
+            httpGet: { path: /health, port: 8095 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: refactor-engine
+  namespace: cascade
+spec:
+  selector:
+    app: refactor-engine
+  ports:
+    - port: 8095
+      targetPort: 8095
+  type: ClusterIP

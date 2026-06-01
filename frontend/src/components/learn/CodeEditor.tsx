@@ -3,21 +3,18 @@ import dynamic from 'next/dynamic';
 
 const Monaco = dynamic(() => import('@monaco-editor/react').then((m) => m.default), {
   ssr: false,
-  loading: () => <div className="p-3 text-slate-500 text-sm">Loading editor…</div>,
+  loading: () => <div className="p-3 text-[#006622] text-sm font-mono">loading editor...</div>,
 });
 
 export function CodeEditor({
   value, onChange, language = 'python',
 }: { value: string; onChange: (v: string) => void; language?: string }) {
-  // Monaco loads its worker from a CDN; if that fails (e.g. sandboxed preview),
-  // we still want an editable surface. We render Monaco but keep a textarea
-  // fallback toggle for environments without network.
   const [useFallback, setUseFallback] = React.useState(false);
 
   if (useFallback) {
     return (
       <textarea
-        className="w-full h-full font-mono text-sm p-3 bg-[#1e1e1e] text-slate-100 outline-none resize-none"
+        className="w-full h-full font-mono text-sm p-3 bg-black text-[#00ff41] outline-none resize-none border-0"
         value={value}
         spellCheck={false}
         onChange={(e) => onChange(e.target.value)}
@@ -29,18 +26,18 @@ export function CodeEditor({
     <div className="h-full relative">
       <button
         onClick={() => setUseFallback(true)}
-        className="absolute z-10 right-2 top-2 text-[10px] px-2 py-0.5 bg-slate-700/80 text-slate-200 rounded"
-        title="Switch to plain editor (no network)"
+        className="absolute z-10 right-2 top-2 text-[10px] px-2 py-0.5 border border-[#1a1a1a] text-slate-600 hover:text-[#00ff41] bg-black"
+        title="Switch to plain editor"
       >
         plain
       </button>
       <Monaco
         height="100%"
         language={language}
-        theme="vs-dark"
+        theme="hc-black"
         value={value}
         onChange={(v) => onChange(v || '')}
-        options={{ minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false }}
+        options={{ minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false, fontFamily: 'JetBrains Mono' }}
       />
     </div>
   );

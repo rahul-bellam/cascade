@@ -31,31 +31,25 @@ export function LeagueStandings() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0F0F23] flex items-center justify-center font-['Chakra_Petch',sans-serif]">
-        <div className="text-[#A78BFA] text-2xl tracking-widest animate-pulse drop-shadow-[0_0_8px_#A78BFA]">
-          LOADING_STANDINGS...
-        </div>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-[#00ff41] font-mono text-lg animate-pulse">$ loading_standings...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#0F0F23] flex flex-col items-center justify-center font-['Chakra_Petch',sans-serif]">
-        <div className="text-[#EF4444] text-xl mb-4 font-bold tracking-widest uppercase">
-          SYSTEM_ERROR
-        </div>
-        <div className="text-[#E2E8F0]">{error}</div>
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+        <div className="text-[#ff3333] font-mono text-lg mb-4">&gt; error: system_error</div>
+        <div className="text-slate-500 font-mono text-sm">{error}</div>
       </div>
     );
   }
 
   if (!season) {
     return (
-      <div className="min-h-screen bg-[#0F0F23] flex items-center justify-center font-['Chakra_Petch',sans-serif]">
-        <div className="text-[#E2E8F0] text-xl opacity-50 tracking-widest">
-          NO_ACTIVE_SEASON_FOUND
-        </div>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-slate-600 font-mono text-lg">$ no_active_season</div>
       </div>
     );
   }
@@ -63,99 +57,74 @@ export function LeagueStandings() {
   const daysLeft = Math.max(0, Math.floor((new Date(season.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
 
   return (
-    <div className="min-h-screen bg-[#0F0F23] text-[#E2E8F0] font-['Chakra_Petch',sans-serif] p-8 relative overflow-hidden">
-      
-      {/* Background CRT Effects */}
-      <div className="absolute inset-0 pointer-events-none opacity-5 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] z-50"></div>
-
-      <div className="max-w-5xl mx-auto relative z-10">
-        
-        {/* Season Header */}
-        <header className="mb-12 border-b border-[#4C1D95] pb-6 relative">
+    <div className="min-h-screen bg-black text-[#00ff41] font-mono">
+      <div className="max-w-5xl mx-auto p-8">
+        <header className="mb-8 border-b border-[#1a1a1a] pb-4">
           <div className="flex justify-between items-end">
             <div>
-              <h3 className="text-[#A78BFA] text-sm tracking-[0.3em] uppercase mb-2">Current Season</h3>
-              <h1 className="text-5xl font-bold text-[#FFFFFF] tracking-wider" style={{ textShadow: '0 0 10px #7C3AED' }}>
-                {season.name}
-              </h1>
+              <div className="text-xs text-slate-600 mb-1">$ current_season</div>
+              <h1 className="text-2xl font-bold text-[#00ff41]">{season.name}</h1>
             </div>
             <div className="text-right">
-              <div className="text-[#F43F5E] text-2xl font-bold tracking-widest" style={{ textShadow: '0 0 8px #F43F5E' }}>
-                {daysLeft} DAYS LEFT
-              </div>
-              <div className="text-[#A78BFA] text-xs uppercase tracking-widest mt-1">
-                UNTIL ROSTER LOCK
-              </div>
+              <div className="text-lg font-bold text-[#ff3333]">{daysLeft}d remaining</div>
+              <div className="text-xs text-slate-600">until roster lock</div>
             </div>
           </div>
         </header>
 
-        {/* Division Selector */}
-        <div className="flex gap-4 mb-8">
+        <div className="flex gap-2 mb-6">
           {DIVISIONS.map(div => (
             <button
               key={div}
               onClick={() => setDivision(div)}
-              className={`px-8 py-3 font-bold uppercase tracking-widest transition-all duration-300 ${
-                division === div 
-                  ? 'bg-[#7C3AED] text-[#FFFFFF] shadow-[0_0_15px_#7C3AED] border border-[#A78BFA]' 
-                  : 'bg-[#27273B] text-[#A78BFA] hover:bg-[#4C1D95]/50 border border-transparent'
-              } skew-x-[-10deg]`}
+              className={`px-6 py-2 text-sm font-mono border transition-colors ${
+                division === div
+                  ? 'border-[#00ff41] text-[#00ff41] bg-[#00ff41]/10'
+                  : 'border-[#1a1a1a] text-slate-600 hover:border-slate-700'
+              }`}
             >
-              <div className="skew-x-[10deg]">{div} Division</div>
+              {div}
             </button>
           ))}
         </div>
 
-        {/* Leaderboard Table */}
-        <div className="bg-[#1a1a2e] border border-[#4C1D95] rounded-xl overflow-hidden shadow-[0_0_30px_rgba(124,58,237,0.15)]">
-          <table className="w-full text-left border-collapse">
+        <div className="border border-[#1a1a1a] overflow-hidden">
+          <table className="w-full text-left">
             <thead>
-              <tr className="bg-[#27273B] border-b border-[#4C1D95] text-xs uppercase tracking-[0.2em] text-[#A78BFA]">
-                <th className="p-4 w-20 text-center">Rank</th>
-                <th className="p-4">Player</th>
-                <th className="p-4 w-32">ELO</th>
-                <th className="p-4 w-32">W/L</th>
-                <th className="p-4 w-32">Points</th>
-                <th className="p-4 w-32 text-center">Trend</th>
+              <tr className="border-b border-[#1a1a1a] text-xs text-slate-600 uppercase tracking-wider">
+                <th className="p-3 w-16 text-center">rank</th>
+                <th className="p-3">player</th>
+                <th className="p-3 w-24">elo</th>
+                <th className="p-3 w-24">w/l</th>
+                <th className="p-3 w-24">points</th>
+                <th className="p-3 w-28 text-center">trend</th>
               </tr>
             </thead>
             <tbody>
               {standings.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-[#A78BFA] opacity-50 tracking-widest uppercase">
-                    No active players in this division
+                  <td colSpan={6} className="p-6 text-center text-slate-600 text-sm">
+                    $ no_players_in_division
                   </td>
                 </tr>
               ) : (
                 standings.map((user, idx) => (
-                  <tr 
-                    key={user.user_id} 
-                    className={`border-b border-[#4C1D95]/30 hover:bg-[#7C3AED]/10 transition-colors ${
-                      idx < 3 ? 'bg-[#7C3AED]/5' : ''
-                    }`}
-                  >
-                    <td className="p-4 text-center font-bold">
-                      <span className={`${
-                        idx === 0 ? 'text-[#F43F5E] drop-shadow-[0_0_8px_#F43F5E] text-2xl' : 
-                        idx === 1 ? 'text-[#A78BFA] text-xl' : 
-                        idx === 2 ? 'text-[#7C3AED] text-lg' : 'text-[#E2E8F0]/50'
-                      }`}>
+                  <tr key={user.user_id} className={`border-b border-[#1a1a1a]/50 hover:bg-[#00ff41]/5 transition-colors ${idx < 3 ? 'bg-[#00ff41]/5' : ''}`}>
+                    <td className="p-3 text-center font-bold font-mono">
+                      <span className={`${idx === 0 ? 'text-[#ff3333] text-lg' : idx === 1 ? 'text-[#00ff41]' : idx === 2 ? 'text-[#006622]' : 'text-slate-600'}`}>
                         {user.rank}
                       </span>
                     </td>
-                    <td className="p-4 font-bold text-[#FFFFFF] tracking-wide">
-                      {user.user_id}
+                    <td className="p-3 font-bold text-[#00ff41]">{user.user_id}</td>
+                    <td className="p-3 text-slate-500">{user.elo}</td>
+                    <td className="p-3 text-slate-500">
+                      <span className="text-[#00ff41]">{user.wins}</span> - <span className="text-[#ff3333]">{user.losses}</span>
                     </td>
-                    <td className="p-4 font-mono text-[#A78BFA]">{user.elo}</td>
-                    <td className="p-4 font-mono text-[#E2E8F0]/70">
-                      <span className="text-[#22C55E]">{user.wins}</span> - <span className="text-[#EF4444]">{user.losses}</span>
-                    </td>
-                    <td className="p-4 font-mono text-[#FFFFFF] font-bold text-lg">{user.points}</td>
-                    <td className="p-4 text-center">
-                      {user.trend === 'promoted' && <span className="text-[#22C55E] tracking-widest text-xs uppercase drop-shadow-[0_0_5px_#22C55E]">↑ Promoted</span>}
-                      {user.trend === 'relegated' && <span className="text-[#EF4444] tracking-widest text-xs uppercase drop-shadow-[0_0_5px_#EF4444]">↓ Relegated</span>}
-                      {user.trend === 'same' && <span className="text-[#E2E8F0]/30">—</span>}
+                    <td className="p-3 text-[#00ff41] font-bold">{user.points}</td>
+                    <td className="p-3 text-center">
+                      {user.trend === 'promoted' && <span className="text-[#00ff41] text-xs">↑ promoted</span>}
+                      {user.trend === 'relegated' && <span className="text-[#ff3333] text-xs">↓ relegated</span>}
+                      {user.trend === 'same' && <span className="text-slate-600">—</span>}
                     </td>
                   </tr>
                 ))
@@ -163,7 +132,6 @@ export function LeagueStandings() {
             </tbody>
           </table>
         </div>
-
       </div>
     </div>
   );

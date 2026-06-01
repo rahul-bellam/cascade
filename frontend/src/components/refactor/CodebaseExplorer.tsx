@@ -1,7 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ForceGraph2D } from 'react-force-graph';
-import MonacoEditor from '@monaco-editor/react';
+import dynamic from 'next/dynamic';
 import { refactorApi } from '../../lib/api';
+
+const ForceGraph2D = dynamic(() => import('react-force-graph').then((m) => m.ForceGraph2D), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-full text-slate-600 font-mono text-sm">loading graph...</div>,
+});
+
+const Monaco = dynamic(() => import('@monaco-editor/react').then((m) => m.default), {
+  ssr: false,
+  loading: () => <div className="p-3 text-green-700 text-sm font-mono">loading editor...</div>,
+});
 
 export function CodebaseExplorer({ codebase = "payment-monolith" }: { codebase?: string }) {
   const [sid, setSid] = useState<string | null>(null);
@@ -11,8 +20,6 @@ export function CodebaseExplorer({ codebase = "payment-monolith" }: { codebase?:
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const graphRef = useRef<any>(null);
-
-  // Measure container for ForceGraph responsiveness
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 400, height: 600 });
 
@@ -20,14 +27,14 @@ export function CodebaseExplorer({ codebase = "payment-monolith" }: { codebase?:
     if (containerRef.current) {
       setDimensions({
         width: containerRef.current.offsetWidth,
-        height: containerRef.current.offsetHeight
+        height: containerRef.current.offsetHeight,
       });
     }
     const handleResize = () => {
       if (containerRef.current) {
         setDimensions({
           width: containerRef.current.offsetWidth,
-          height: containerRef.current.offsetHeight
+          height: containerRef.current.offsetHeight,
         });
       }
     };
@@ -44,8 +51,8 @@ export function CodebaseExplorer({ codebase = "payment-monolith" }: { codebase?:
         const deps = await refactorApi.deps(startRes.session_id);
         setDepGraph(deps);
         if (deps.nodes && deps.nodes.length > 0) {
-           const first = deps.nodes[0].id;
-           handleFileSelect(startRes.session_id, first);
+          const first = deps.nodes[0].id;
+          handleFileSelect(startRes.session_id, first);
         }
       } catch (err: any) {
         setError(err.message || String(err));
@@ -62,7 +69,6 @@ export function CodebaseExplorer({ codebase = "payment-monolith" }: { codebase?:
       const res = await refactorApi.file(sessionId, path);
       setFileContent(res.content);
     } catch (err) {
-      console.error(err);
       setFileContent('// Error loading file');
     }
   };
@@ -73,96 +79,80 @@ export function CodebaseExplorer({ codebase = "payment-monolith" }: { codebase?:
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#0F172A] text-[#F8FAFC] font-['JetBrains_Mono',monospace]">
-        <div className="animate-pulse flex items-center gap-3">
-          <span className="text-[#22C55E]">⚡</span> Analyzing Codebase...
-        </div>
+      <div className="flex items-center justify-center h-screen bg-black text-[#00ff41] font-mono">
+        <div className="animate-pulse">$ analyzing codebase...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#0F172A] text-[#EF4444] font-['JetBrains_Mono',monospace]">
-        Failed to load: {error}
+      <div className="flex items-center justify-center h-screen bg-black text-[#ff3333] font-mono">
+        &gt; failed: {error}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#0F172A] text-[#F8FAFC] font-['JetBrains_Mono',monospace]">
-      
-      {/* Header */}
-      <header className="flex-none px-6 py-4 border-b border-[#475569] bg-[#1E293B] flex justify-between items-center shadow-lg z-10">
+    <div className="flex flex-col bg-black text-[#00ff41] font-mono" style={{ height: 'calc(100vh - 8rem)' }}>
+      <header className="flex-none px-6 py-3 border-b border-[#1a1a1a] flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold tracking-tight flex items-center gap-2">
-            <span className="text-[#22C55E]">🔍</span> Refactor Explorer
-          </h1>
-          <span className="text-xs bg-[#272F42] px-2 py-1 rounded text-[#F8FAFC]/80 border border-[#475569]">
-            {codebase}
-          </span>
+          <h1 className="text-sm font-bold">$ refactor_explorer</h1>
+          <span className="text-xs border border-[#1a1a1a] px-2 py-0.5 text-slate-600">{codebase}</span>
         </div>
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#EF4444]"></span> High Coupling
+        <div className="flex items-center gap-4 text-xs text-slate-600">
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 bg-[#ff3333] inline-block"></span> high coupling
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#22C55E]"></span> Standard File
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 bg-[#00ff41] inline-block"></span> standard
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 bg-[#ff3333] inline-block"></span> selected
           </div>
         </div>
       </header>
 
-      {/* Main layout */}
       <main className="flex-1 flex overflow-hidden">
-        
-        {/* File Tree (Left) */}
-        <div className="w-64 flex-none border-r border-[#475569] bg-[#1E293B] flex flex-col overflow-y-auto">
-          <div className="p-4 text-xs uppercase tracking-widest text-[#F8FAFC]/50 border-b border-[#475569]">
-            Project Files
-          </div>
-          <div className="py-2">
+        <div className="w-64 flex-none border-r border-[#1a1a1a] flex flex-col overflow-y-auto">
+          <div className="p-3 text-xs text-slate-600 border-b border-[#1a1a1a]">$ files</div>
+          <div className="py-1">
             {depGraph?.files && Object.keys(depGraph.files).sort().map(path => {
               const info = depGraph.files[path];
               const isSelected = selectedFile === path;
               const hasHighCoupling = info.imports.length > 5 || info.global_vars.length > 0;
-              
+
               return (
                 <div
                   key={path}
                   onClick={() => sid && handleFileSelect(sid, path)}
-                  className={`px-4 py-2 cursor-pointer text-sm transition-colors border-l-2 flex justify-between items-center group
-                    ${isSelected 
-                      ? 'bg-[#272F42] border-[#22C55E] text-[#22C55E]' 
-                      : 'border-transparent text-[#F8FAFC]/80 hover:bg-[#334155] hover:text-[#F8FAFC]'
+                  className={`px-3 py-1.5 cursor-pointer text-xs border-l-2 flex justify-between items-center transition-colors
+                    ${isSelected
+                      ? 'border-[#ff3333] bg-[#ff3333]/10 text-[#00ff41]'
+                      : 'border-transparent text-slate-600 hover:text-slate-500 hover:border-slate-800'
                     }`}
                 >
-                  <div className="flex items-center gap-2 truncate">
-                    <span className="opacity-50 group-hover:opacity-100">📄</span>
-                    <span className="truncate">{path}</span>
-                  </div>
-                  {hasHighCoupling && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444]" title="High Coupling" />
-                  )}
+                  <span className="truncate">{path}</span>
+                  {hasHighCoupling && <span className="w-1.5 h-1.5 bg-[#ff3333] inline-block flex-shrink-0" />}
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Dependency Graph (Middle) */}
-        <div className="flex-1 border-r border-[#475569] bg-[#0F172A] relative" ref={containerRef}>
-          <div className="absolute top-4 left-4 z-10 bg-[#1E293B]/80 backdrop-blur border border-[#475569] p-3 rounded text-xs text-[#F8FAFC]/80 shadow-lg pointer-events-none">
-            <h3 className="font-bold text-[#F8FAFC] mb-2 uppercase tracking-wider">Metrics</h3>
-            <div>Total Files: {depGraph?.metrics?.total_files}</div>
-            <div>Functions: {depGraph?.metrics?.total_functions}</div>
-            <div>Global State Refs: {depGraph?.metrics?.total_global_state}</div>
+        <div className="flex-1 border-r border-[#1a1a1a] bg-black relative" ref={containerRef}>
+          <div className="absolute top-3 left-3 z-10 border border-[#1a1a1a] bg-black/90 p-3 text-xs text-slate-600 pointer-events-none font-mono">
+            <div className="font-bold text-[#00ff41] mb-1">$ metrics</div>
+            <div>files: {depGraph?.metrics?.total_files}</div>
+            <div>functions: {depGraph?.metrics?.total_functions}</div>
+            <div>global_state_refs: {depGraph?.metrics?.total_global_state}</div>
             {depGraph?.metrics?.god_functions?.length > 0 && (
-              <div className="mt-2 text-[#EF4444]">
-                ⚠️ God Functions: {depGraph.metrics.god_functions.join(', ')}
+              <div className="mt-1 text-[#ff3333]">
+                &gt; god_functions: {depGraph.metrics.god_functions.join(', ')}
               </div>
             )}
           </div>
-          
+
           {depGraph && (
             <ForceGraph2D
               ref={graphRef}
@@ -171,46 +161,40 @@ export function CodebaseExplorer({ codebase = "payment-monolith" }: { codebase?:
               graphData={depGraph}
               nodeId="id"
               nodeLabel="name"
-              nodeColor={n => n.id === selectedFile ? '#EAB308' : (n.high_coupling ? '#EF4444' : '#22C55E')}
+              nodeColor={n => n.id === selectedFile ? '#ff3333' : (n.high_coupling ? '#00ff41' : '#006622')}
               nodeRelSize={4}
-              linkColor={() => '#475569'}
+              linkColor={() => '#1a1a1a'}
               linkDirectionalArrowLength={3.5}
               linkDirectionalArrowRelPos={1}
               onNodeClick={handleNodeClick}
-              backgroundColor="#0F172A"
+              backgroundColor="#000000"
             />
           )}
         </div>
 
-        {/* Monaco Editor (Right) */}
-        <div className="flex-1 flex flex-col min-w-[500px] bg-[#1E293B]">
-          <div className="flex-none px-4 py-2 border-b border-[#475569] bg-[#272F42] text-xs text-[#F8FAFC]/70 flex justify-between items-center shadow-inner">
-            <span className="font-bold truncate">{selectedFile || 'No file selected'}</span>
-            <span className="px-2 py-0.5 bg-[#0F172A] rounded border border-[#475569]">Python</span>
+        <div className="flex-1 flex flex-col min-w-[500px]">
+          <div className="flex-none px-4 py-2 border-b border-[#1a1a1a] text-xs text-slate-600 flex justify-between items-center">
+            <span className="font-bold truncate text-[#00ff41]">$ {selectedFile || 'no_file'}</span>
+            <span className="px-2 py-0.5 border border-[#1a1a1a] text-slate-600">python</span>
           </div>
-          <div className="flex-1">
-            <MonacoEditor
+          <div className="flex-1 border-t border-[#1a1a1a]">
+            <Monaco
               language="python"
-              theme="vs-dark"
+              theme="hc-black"
               value={fileContent}
-              onChange={(v) => setFileContent(v || '')}
-              options={{ 
+              onChange={(v: any) => setFileContent(v || '')}
+              options={{
                 minimap: { enabled: true },
-                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                fontSize: 14,
-                lineHeight: 24,
-                padding: { top: 16 },
+                fontFamily: 'JetBrains Mono',
+                fontSize: 13,
+                lineHeight: 22,
+                padding: { top: 12 },
                 readOnly: false,
                 scrollBeyondLastLine: false,
-                smoothScrolling: true,
-                cursorBlinking: "smooth",
-                cursorSmoothCaretAnimation: "on",
-                formatOnPaste: true,
               }}
             />
           </div>
         </div>
-
       </main>
     </div>
   );

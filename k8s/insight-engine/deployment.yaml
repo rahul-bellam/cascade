@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insight-engine
+  namespace: cascade
+  labels:
+    app: insight-engine
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: insight-engine
+  template:
+    metadata:
+      labels:
+        app: insight-engine
+    spec:
+      containers:
+        - name: engine
+          image: cascade/insight-engine:latest
+          ports:
+            - containerPort: 8097
+          env:
+            - name: CASCADE_ENGINE_URL
+              value: "http://cascade-engine:8090"
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { cpu: "1", memory: "2Gi" }
+          livenessProbe:
+            httpGet: { path: /health, port: 8097 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: insight-engine
+  namespace: cascade
+spec:
+  selector:
+    app: insight-engine
+  ports:
+    - port: 8097
+      targetPort: 8097
+  type: ClusterIP

@@ -13,6 +13,7 @@ app = FastAPI(title="user-service", version="1.0.0")
 
 profiles: dict[str, dict] = {}
 progress: dict[str, list] = {}
+consent: dict[str, dict] = {}
 
 class ProfileRequest(BaseModel):
     display_name: str | None = None
@@ -100,3 +101,67 @@ def add_progress(entry: ProgressEntry, request: Request) -> ProgressResponse:
         user_id=uid,
         entries=[ProgressEntry(**e) for e in progress[uid]],
     )
+
+# ── Consent & Trust Boundary ─────────────────────────────────────────────
+
+class ConsentRequest(BaseModel):
+    share_with_assess: bool = False
+    share_calibration_data: bool = False
+    data_retention_days: int = 365
+
+class ConsentResponse(BaseModel):
+    user_id: str
+    share_with_assess: bool
+    share_calibration_data: bool
+    data_retention_days: int
+    updated_at: str
+
+class DataExportResponse(BaseModel):
+    user_id: str
+    profile: dict | None
+    progress: list
+    consent: dict | None
+
+@app.get("/api/v1/user/consent")
+def get_consent(request: Request) -> ConsentResponse:
+    user = get_current_user(request)
+    uid = user["id"]
+    c = consent.get(uid, {
+        "share_with_assess": False,
+        "share_calibration_data": False,
+        "data_retention_days": 365,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return ConsentResponse(user_id=uid, **c)
+
+@app.put("/api/v1/user/consent")
+def update_consent(req: ConsentRequest, request: Request) -> ConsentResponse:
+    user = get_current_user(request)
+    uid = user["id"]
+    consent[uid] = {
+        "share_with_assess": req.share_with_assess,
+        "share_calibration_data": req.share_calibration_data,
+        "data_retention_days": req.data_retention_days,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    return ConsentResponse(user_id=uid, **consent[uid])
+
+@app.post("/api/v1/user/data/export")
+def export_data(request: Request) -> DataExportResponse:
+    user = get_current_user(request)
+    uid = user["id"]
+    return DataExportResponse(
+        user_id=uid,
+        profile=profiles.get(uid),
+        progress=progress.get(uid, []),
+        consent=consent.get(uid),
+    )
+
+@app.delete("/api/v1/user/data")
+def delete_data(request: Request):
+    user = get_current_user(request)
+    uid = user["id"]
+    profiles.pop(uid, None)
+    progress.pop(uid, None)
+    consent.pop(uid, None)
+    return {"status": "deleted", "user_id": uid}

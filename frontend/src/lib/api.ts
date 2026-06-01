@@ -82,3 +82,28 @@ export const constraintApi = {
   hint: (sid: string, level: number) =>
     fetch(`${CONSTRAINT}/constraint/${sid}/hint?level=${level}`).then(j<any>),
 };
+
+const PREDICT = '/api/predict';
+export const predictApi = {
+  start: (archetype: string, userId: string) =>
+    fetch(`${PREDICT}/predict/start`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archetype, user_id: userId }),
+    }).then(j<any>),
+  current: (sid: string) => fetch(`${PREDICT}/predict/${sid}`).then(j<any>),
+  predict: (sid: string, prediction: string) =>
+    fetch(`${PREDICT}/predict/${sid}/predict`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prediction }),
+    }).then(j<any>),
+  insight: (sid: string, diagnosis: string, tradeoffs: string, foresight: string) =>
+    fetch(`${PREDICT}/predict/${sid}/insight`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ diagnosis, tradeoffs, foresight }),
+    }).then(j<any>),
+  fix: (sid: string, fix: string) =>
+    fetch(`${PREDICT}/predict/${sid}/fix`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fix }),
+    }).then(j<any>),
+};

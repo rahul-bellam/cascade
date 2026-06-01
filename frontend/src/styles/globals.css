@@ -1,42 +1,37 @@
-/* Fira Code + Fira Sans (skill typography pick for technical/data products).
-   font-display swap per skill performance guidance. External fonts won't load
-   in the sandboxed preview iframe, so the Tailwind stack falls back to
-   system-ui/monospace gracefully. */
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Semantic color tokens — Dark Mode (OLED) per the skill design system.
-   rgb triplets so Tailwind's <alpha-value> works. */
 :root {
-  --bg: 15 23 42;          /* slate-900 #0F172A */
-  --surface: 30 41 59;     /* slate-800 #1E293B */
-  --surface-2: 39 47 66;   /* muted #272F42 */
-  --border: 71 85 105;     /* slate-600 #475569 */
-  --fg: 248 250 252;       /* #F8FAFC */
-  --muted: 148 163 184;    /* slate-400 #94A3B8 */
+  --bg: 0 0 0;
+  --surface: 10 10 10;
+  --surface-2: 20 20 20;
+  --border: 26 26 26;
+  --fg: 0 255 65;
+  --muted: 0 204 51;
 }
+
+::selection { background: rgba(0, 255, 65, 0.25); color: #00ff41; }
 
 html, body {
   margin: 0;
   background: rgb(var(--bg));
   color: rgb(var(--fg));
-  font-family: 'Fira Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
   -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 * { box-sizing: border-box; }
 
-/* Accessibility: always-visible focus ring (skill rule: never remove focus). */
 :where(a, button, input, textarea, select, [tabindex]):focus-visible {
-  outline: 2px solid #60a5fa;
+  outline: 1px solid #00ff41;
   outline-offset: 2px;
-  border-radius: 4px;
 }
 
-/* Accessibility: respect reduced motion. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -45,7 +40,31 @@ html, body {
   }
 }
 
-/* Thin scrollbars for the dark surfaces. */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 6px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #1a1a1a; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+@layer components {
+  .terminal-card {
+    @apply border border-[#1a1a1a] bg-[#0a0a0a] p-4;
+  }
+  .terminal-btn {
+    @apply border border-[#00ff41] text-[#00ff41] px-4 py-2 text-sm
+           hover:bg-[#00ff41] hover:text-black transition-colors duration-150
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .terminal-btn-red {
+    @apply border border-[#ff3333] text-[#ff3333] px-4 py-2 text-sm
+           hover:bg-[#ff3333] hover:text-black transition-colors duration-150;
+  }
+  .terminal-input {
+    @apply bg-black border border-[#1a1a1a] text-[#00ff41] px-3 py-2 text-sm
+           focus:border-[#00ff41] focus:outline-none;
+  }
+  .terminal-link {
+    @apply text-[#00ff41] hover:text-[#00cc33] underline underline-offset-4 decoration-[#1a1a1a] hover:decoration-[#00ff41];
+  }
+  .terminal-badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 text-xs border;
+  }
+}
