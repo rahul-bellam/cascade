@@ -37,3 +37,7 @@ __pycache__/
 # Go module cache
 go/pkg/mod/
 go/pkg/sumdb/
+
+# Go compiled binaries
+services/cascade-engine/cascade-engine
+services/constraint-engine/constraint-engine

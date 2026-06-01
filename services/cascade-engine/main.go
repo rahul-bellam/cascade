@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"sort"
@@ -17,12 +16,11 @@ import (
 )
 
 var (
-	startTime   = time.Now()
-	sessions    = map[string]*Session{}
-	sessMu      sync.Mutex
+	startTime       = time.Now()
+	sessions        = map[string]*Session{}
+	sessMu          sync.Mutex
+	learnEngineURL  = "http://localhost:8093"
 )
-
-const learnEngineURL = "http://localhost:8093"
 
 func init() {
 	if v := os.Getenv("LEARN_ENGINE_URL"); v != "" {
