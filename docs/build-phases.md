@@ -524,9 +524,9 @@ git add -A && git commit -m "feat: Constraint Unlock MVP — monolith scaling wi
 
 ---
 
-## Phase 3: Cascade Engine MVP (Weeks 9-11)
+## Phase 3: Cascade Engine + Signal Layer (Weeks 9-11)
 
-**Goal:** The DAG walker works. Users experience chain-reaction failures for one topic.
+**Goal:** The DAG walker works. Users experience chain-reaction failures for one topic. Every fix → outcome is logged for the cognitive moat.
 
 ### Step 3.1: Cascade Engine Core (Python)
 
@@ -739,10 +739,114 @@ git add -A && git commit -m "feat: Cascade Engine MVP — DAG walker, fix analyz
 - [x] DAG validation script
 - [x] Session management API
 - [x] 3-level hint system
+- [x] **Signal layer logging** — every fix attempt logs `user_id, node_id, concern_ids, fix_text, reached_for_first, missed, outcome, timestamp` to a telemetry store (Redis stream / Postgres)
+- [x] **Signal layer schema** documented and enforced across Cascade, Constraint, Learn, Arena modes
 
 ---
 
-## Phase 4: Blind Refactor MVP (Weeks 12-14)
+## Phase 3.5: Personal Failure Profile (Weeks 11-12)
+
+**Goal:** Aggregate signal-layer data into per-user profiles. No personalization UI yet — just accumulating the asset.
+
+### Step 3.5.1: Profile Aggregation Service
+
+```python
+# services/insight-engine/profile.py
+# Reads from telemetry store, computes per-user concern mastery, instinct biases, recurring chains
+
+class ProfileAggregator:
+    def get_profile(self, user_id: str) -> dict:
+        attempts = self._get_attempts(user_id)
+        concern_mastery = self._compute_mastery(attempts)
+        biases = self._compute_biases(attempts)
+        chains = self._detect_recurring_chains(attempts)
+        return {
+            "user_id": user_id,
+            "concern_mastery": concern_mastery,
+            "instinct_biases": biases,
+            "recurring_chains": chains,
+            "growth": self._compute_growth(attempts)
+        }
+```
+
+### Step 3.5.2: Insight Engine Service
+
+New microservice `services/insight-engine/` at `:8097`:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /profile/{user_id}/weaknesses` | Concerns with highest miss-rate |
+| `GET /profile/{user_id}/mastery` | Full concern_mastery map |
+| `POST /profile/{user_id}/hint?mode=cascade` | Returns personalized hint for current node, referencing user's pattern |
+
+### Step 3.5.3: Commit
+
+```bash
+git add -A && git commit -m "feat: Personal Failure Profile — aggregator, bias detection, insight engine"
+```
+
+**Phase 3.5 Deliverables:**
+- [x] Profile aggregation from signal-layer data
+- [x] Concern mastery state machine (unseen → exposed → weak → improving → strong) with decay
+- [x] Instinct bias detection (e.g. "cache_first 0.78")
+- [x] Recurring chain detection
+- [x] Insight Engine service (`:8097`)
+- [x] Personalized hint endpoint
+
+---
+
+## Phase 3.6: Reasoning-First Flow (Weeks 12-13)
+
+**Goal:** Cascade mode gates the code editor behind an insight step — user must diagnose before implementing.
+
+### Step 3.6.1: Insight Gate
+
+Modify the Cascade session flow:
+
+```
+POST /cascade/{sid}/insight
+  → User submits: what's failing, why, trade-off, anticipated next failure
+  → Returns: {reasoning_score, axis_breakdown, unlocked(bool), process_hint?}
+  → If score passes threshold → unlock editor for /fix
+  → If score low → return process hint (never the answer)
+```
+
+### Step 3.6.2: Three-Axis Scorer
+
+- **Diagnosis** — embedding similarity to the node's `expected_reasoning.diagnosis`
+- **Trade-off awareness** — did they name what the fix costs?
+- **Foresight** — did they anticipate the next failure? (senior/staff differentiator)
+
+Deterministic keyword fallback for dev mode (no LLM dependency).
+
+### Step 3.6.3: Process Hints (Socratic)
+
+Replace answer hints with escalating questions. Update DAG content schema:
+
+```yaml
+expected_reasoning:
+  diagnosis: ["single point of failure", "all limiting stops when redis dies"]
+  tradeoffs: ["HA adds cost/ops complexity", "fallback risks over-permitting"]
+  foresight: ["sentinel -> memory growth", "replica lag -> inconsistent limits"]
+reasoning_weight: 0.5
+```
+
+### Step 3.6.4: Commit
+
+```bash
+git add -A && git commit -m "feat: Reasoning-First Flow — insight gate, 3-axis scorer, Socratic hints"
+```
+
+**Phase 3.6 Deliverables:**
+- [x] Insight gate endpoint (`POST /cascade/{sid}/insight`)
+- [x] Three-axis scorer (embedding similarity + LLM rubric + keyword fallback)
+- [x] Process hints replace answer hints in content schema
+- [x] Editor locked until insight accepted (configurable: enforced in Assess, optional-but-rewarded in Practice)
+- [x] `expected_reasoning` and `reasoning_weight` added to DAG content schema
+
+---
+
+## Phase 4: Blind Refactor MVP (Weeks 13-15)
 
 **Goal:** Users can explore, diagnose, and refactor a spaghetti codebase with dependency visualization.
 
@@ -1072,9 +1176,9 @@ git add -A && git commit -m "feat: Blind Refactor MVP — dependency mapper, cod
 
 ---
 
-## Phase 5: Arena MVP (Weeks 15-17)
+## Phase 5: Arena + Challenge-a-Friend (Weeks 16-18)
 
-**Goal:** Two users can match, duel, and get scored on their system designs.
+**Goal:** Two users can match, duel, and get scored on their system designs. Any user can send a shareable challenge link.
 
 ### Step 5.1: WebSocket Duel State Machine
 
@@ -1308,10 +1412,11 @@ git add -A && git commit -m "feat: Arena MVP — WebSocket duel state machine, E
 - [x] Multi-dimensional scoring (survival ×3, latency ×2, throughput ×1, cost ×1)
 - [x] Arena frontend — split-screen with opponent progress
 - [x] Real-time simulation metrics during battle
+- [x] **Challenge-a-friend** — generate shareable link from any scenario/duel; head-to-head comparison on depth, cost, hints, reasoning score
 
 ---
 
-## Phase 6: League System (Weeks 18-19)
+## Phase 6: League System (Weeks 19-20)
 
 **Goal:** Weekly themed contests with divisions, promotion/relegation.
 
@@ -1381,9 +1486,9 @@ git add -A && git commit -m "feat: League System — seasons, divisions, standin
 
 ---
 
-## Phase 7: Auth, Database Migrations, & CI/CD (Weeks 20-21)
+## Phase 7: Auth, Trust Architecture, & CI/CD (Weeks 21-22)
 
-**Goal:** Production-hardening — auth, real persistence, CI/CD pipelines.
+**Goal:** Production-hardening — auth, real persistence, CI/CD pipelines, and the trust boundary between Practice and Assess.
 
 ### Step 7.1: Auth Service
 
@@ -1486,17 +1591,35 @@ jobs:
           # kubectl apply, terraform apply, etc.
 ```
 
-### Step 7.4: Commit
+### Step 7.4: Trust Architecture
+
+Define and enforce the data boundary between Practice and Assess:
+
+- Practice profiles never shared with Assess without explicit, revocable opt-in
+- Separate consent flow for calibration data vs. hiring data
+- All data exports/deletions include profile data
+- Public trust documentation published alongside the product
+
+### Step 7.5: Commit
 
 ```bash
-git add -A && git commit -m "feat: auth, migrations, CI/CD pipeline"
+git add -A && git commit -m "feat: auth, trust architecture, migrations, CI/CD pipeline"
 ```
+
+**Phase 7 Deliverables:**
+- [x] Auth service with JWT + bcrypt
+- [x] Database migration runner
+- [x] GitHub Actions CI/CD
+- [x] Go + Python + frontend test pipelines
+- [x] Practice/Assess trust boundary enforced in data access layer
+- [x] Consent flow for data sharing
+- [x] Public trust documentation
 
 ---
 
-## Phase 8: Production Deployment (Weeks 22-24)
+## Phase 8: Production Deployment (Weeks 23-25)
 
-**Goal:** Live on cloud infrastructure with monitoring, scaling, and backup.
+**Goal:** Live on cloud infrastructure with monitoring, scaling, backup, and adversarial robustness for the Assess reasoning scorer.
 
 ### Step 8.1: Infrastructure as Code (Terraform)
 
@@ -1603,7 +1726,16 @@ services:
     ports: ["9000:9000"]
 ```
 
-### Step 8.4: Pre-Launch Checklist
+### Step 8.4: Adversarial Robustness (Assess Scorer)
+
+Hardening the reasoning scorer against gaming in hiring contexts:
+
+- **Ensemble scoring** — multiple models evaluate independently; divergence triggers manual review
+- **Hidden probe values** in the problem UI that must be referenced in the reasoning text
+- **Reasoning-vs-implementation gap detection** — low reasoning + high code = red flag
+- **Performance benchmark** — scorer accuracy against hand-labeled test set
+
+### Step 8.5: Pre-Launch Checklist
 
 ```markdown
 # Pre-Launch Checklist
@@ -1640,13 +1772,22 @@ services:
 - [ ] S3: versioning enabled for codebases and solutions
 ```
 
-### Step 8.5: Commit & Tag
+### Step 8.6: Commit & Tag
 
 ```bash
-git add -A && git commit -m "feat: production deployment — Terraform, K8s, monitoring, pre-launch checklist"
+git add -A && git commit -m "feat: production deployment — Terraform, K8s, monitoring, adversarial robustness, pre-launch checklist"
 git tag v1.0.0
 git push origin main --tags
 ```
+
+**Phase 8 Deliverables:**
+- [x] Terraform AWS infrastructure
+- [x] Kubernetes manifests (alternative)
+- [x] Monitoring stack (Prometheus, Grafana, Loki, Sentry)
+- [x] Pre-launch security/infra/monitoring checklist
+- [x] Ensemble scoring for Assess reasoning scorer
+- [x] Hidden probe values in problem UI
+- [x] Reasoning-vs-implementation gap detection
 
 ---
 
@@ -1678,12 +1819,34 @@ archetypes_to_build:
     dag: notification-system.yaml
 ```
 
+### Cold-Start Onboarding UX
+
+Make the "coach knows you" promise felt in session 1, not day 21:
+
+- [ ] "Pick 3 failures that scare you most" → maps to concerns → initial bias sketch
+- [ ] First chain biased toward one of their picks → immediate personalization taste
+- [ ] Explicit feedback after each node: "was this too easy / too hard / just right?"
+- [ ] Weekly mirror report (blind spots closed, persistent weaknesses, bias regression)
+
+### Community Content Submission Pipeline
+
+Let users (especially seniors) author scenarios from real incidents they lived through:
+
+**v1** — structured template (fill in: trigger, condition, outcome, concern_ids) + manual review
+**v2** — AI-assisted drafting from clean incident data (postmortem JSON)
+**v3** — freeform prose → AI-drafted DAG (only after v2 proves the pipeline)
+
+- [ ] Submission validation pipeline (automated: parses, transitions, reachable terminal, solvable, no dupes)
+- [ ] Human review queue with 1-2 hr SLA
+- [ ] Specific rejection reasons ("transition X→Y isn't causally valid because...")
+- [ ] Rejected scenarios remain private-playable (still usable in challenge-a-friend)
+- [ ] Author reputation / credit system
+
 ### Polish Pass
 
 - [ ] Error messages are helpful, not cryptic
 - [ ] Loading states for all async operations
 - [ ] Empty states when no data
-- [ ] Onboarding flow for new users
 - [ ] Keyboard shortcuts for power users
 - [ ] Dark mode
 - [ ] Mobile responsive (at least Learn mode)
@@ -1705,18 +1868,20 @@ archetypes_to_build:
 ## Summary: Phase Timeline
 
 ```
-Phase 0: Foundation              Weeks 1-2     ✅ Empty dir to running dev env
-Phase 1: Learn Mode MVP          Weeks 3-5     ✅ Lessons, snippets, toolkit
-Phase 2: Constraint Unlock MVP   Weeks 6-8     ✅ Monolith scaling, real-time metrics
-Phase 3: Cascade Engine MVP      Weeks 9-11    ✅ DAG walker, fix analyzer, chain reactions
-Phase 4: Blind Refactor MVP      Weeks 12-14   ✅ Spaghetti codebases, dep graphs, new reqs
-Phase 5: Arena MVP               Weeks 15-17   ✅ WebSocket duels, matchmaking, scoring
-Phase 6: League System           Weeks 18-19   ✅ Seasons, divisions, promotion/relegation
-Phase 7: Auth & CI/CD            Weeks 20-21   ✅ Auth, migrations, GitHub Actions
-Phase 8: Production Deploy       Weeks 22-24   ✅ Terraform, K8s, monitoring, checklist
-Phase 9: Content & Polish        Weeks 25-28   ✅ 3 archetypes, onboarding, community launch
+Phase 0: Foundation                  Weeks 1-2     ✅ Empty dir to running dev env
+Phase 1: Learn Mode MVP              Weeks 3-5     ✅ Lessons, snippets, toolkit
+Phase 2: Constraint Unlock MVP       Weeks 6-8     ✅ Monolith scaling, real-time metrics
+Phase 3: Cascade + Signal Layer      Weeks 9-11    ✅ DAG walker, fix analyzer, telemetry logging
+Phase 3.5: Personal Failure Profile  Weeks 11-12   ✅ Profile aggregator, bias detection, insight engine
+Phase 3.6: Reasoning-First Flow      Weeks 12-13   ✅ Insight gate, 3-axis scorer, Socratic hints
+Phase 4: Blind Refactor MVP          Weeks 13-15   ✅ Spaghetti codebases, dep graphs, new reqs
+Phase 5: Arena + Challenge-a-Friend  Weeks 16-18   ✅ WebSocket duels, matchmaking, viral challenges
+Phase 6: League System               Weeks 19-20   ✅ Seasons, divisions, promotion/relegation
+Phase 7: Auth, Trust & CI/CD         Weeks 21-22   ✅ Auth, data boundaries, migrations, CI/CD
+Phase 8: Production Deploy           Weeks 23-25   ✅ Terraform, K8s, adversarial robustness, monitoring
+Phase 9: Content, UGC & Onboarding   Weeks 26-30   ✅ 3 archetypes, community pipeline, cold-start UX
 
-Total: 28 weeks (single engineer) or 14 weeks (team of 3)
+Total: 30 weeks (single engineer) or 15 weeks (team of 3)
 ```
 
 ---
@@ -1734,6 +1899,7 @@ Total: 28 weeks (single engineer) or 14 weeks (team of 3)
 | `services/refactor-engine/dep_mapper.py` | Codebase dependency analysis | Phase 4 |
 | `services/arena-engine/duel.go` | WebSocket duel state machine | Phase 5 |
 | `services/arena-engine/league.go` | Season management | Phase 6 |
+| `services/insight-engine/profile.py` | Personal Failure Profile aggregator | Phase 3.5 |
 | `scripts/validate-dags.py` | DAG integrity checker | Phase 3 |
 | `content/dags/rate-limiter.yaml` | Rate Limiter failure DAG | Phase 3 |
 | `content/codebases/payment-monolith/main.py` | Spaghetti codebase | Phase 4 |

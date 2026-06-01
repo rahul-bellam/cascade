@@ -392,6 +392,75 @@ NEW USER
 
 ## 7.5 Comprehensive Engineering Concerns Coverage
 
+---
+
+## 8. Cognitive Moat & Personalization
+
+### 8.1 The Signal Layer (capture now — data is unrecoverable retroactively)
+
+Every fix the user submits is a permanent, compounding data point. From day one, every interaction across all modes logs:
+
+```jsonc
+{
+  "user_id": "...",
+  "mode": "cascade | constraint | learn | arena",
+  "archetype": "rate_limiter",
+  "node": "redis_spof",
+  "concern_ids": [42, 43, 4, 115],
+  "fix_text": "add redis sentinel",
+  "capabilities_detected": ["high_availability"],
+  "outcome": "advanced | survived | failed | sla_pass | sla_fail",
+  "led_to": "memory_exhaustion",
+  "hints_used": 0,
+  "time_to_fix_ms": 41000,
+  "reached_for_first": "caching",
+  "missed": ["fallback", "idempotency"],
+  "ts": "2026-06-01T..."
+}
+```
+
+The two highest-value fields are `reached_for_first` (instinct/bias) and `missed` (blind spot).
+
+### 8.2 Personal Failure Profile
+
+Aggregate the signal layer into a per-user model keyed to the 233-concern map:
+
+- **concern_mastery** per concern with state machine: `unseen → exposed → weak → improving → strong`, with decay (mastery fades if not exercised)
+- **instinct_biases** — e.g. "cache_first 0.78" — revealed by what user reaches for before profiling
+- **recurring_chains** — failure paths this user falls into repeatedly
+- **growth trajectory** — 30-day blind-spots-closed, avg mastery delta
+
+### 8.3 Adaptive Loop
+
+The profile drives the product:
+
+1. **Targeted chain selection** — DAG walker biased toward nodes touching the user's `blind_spot` and `weak` concerns
+2. **Adaptive difficulty** — auto-tunes to flow edge (hard on weak areas, easy on strong)
+3. **Personalized hints** — references user's own pattern: *"You added the breaker — but last 4 times you skipped the fallback."*
+4. **Weekly mirror** — short report of closed blind spots, persistent weaknesses, bias regression
+5. **Spaced repetition / boss fights** — weak concerns resurface on schedule until converted to `strong`
+
+### 8.4 Cold-Start Onboarding UX
+
+The "coach knows you" promise must be felt in session 1, not day 21. Onboarding includes:
+
+1. Interactive "pick 3 failures that scare you most" — maps to concerns → initial bias sketch
+2. First chain automatically biases toward one of their picks → immediate taste of personalization
+3. Explicit feedback after each node: "was this too easy / too hard / just right?" tunes difficulty before play-data accumulates
+
+### 8.5 Privacy Architecture
+
+**Trust is part of the moat.** These rules are enforced from day one:
+
+| Rule | Why |
+|:---|---|
+| User owns their profile — exportable, deletable at any time | Removes lock-in fear |
+| No data feeds leaderboards without explicit opt-in | Arena ELO is separate and consensual |
+| Assess never sees Practice profile without candidate consent | Prevents "I won't play honestly" chilling effect |
+| Practice mode always clearly indicates when data is being used for calibration vs. personalization | Transparency builds trust |
+
+
+
 Cascade covers **233+ engineering concerns** across 15 categories — from high-level architecture patterns down to the smallest operational details. Every concern is documented in `docs/engineering-concerns.md` and mapped to:
 
 1. **Learn Lessons** — Each concern has a corresponding concept + snippet lesson
@@ -419,7 +488,54 @@ This isn't a hypothetical. This exact chain has happened at multiple companies. 
 
 ---
 
-## 8. Competitive Landscape
+## 9. Reasoning-First Flow (Anti-AI-Cheat)
+
+The product separates diagnosis from implementation — code stays locked until the user articulates *what* is failing, *why*, and *what the trade-off is*.
+
+### 9.1 Two-Act Structure
+
+```
+Act 1 — diagnose (editor locked)
+  → User writes: what's failing & why, what they'll change, what new failure their fix might cause
+  → Scored on 3 axes: diagnosis, trade-off awareness, foresight
+  → If score low → process hint (Socratic, never the answer)
+  → If score OK → unlock editor
+
+Act 2 — implement (editor open)
+  → User writes the fix
+  → Cascade engine reacts to what they actually did
+  → Final score = reasoning + implementation + depth survived + independence
+```
+
+### 9.2 Scoring Robustness
+
+The three-axis scorer (diagnosis / trade-off awareness / foresight) uses:
+- **Embedding similarity** to expected reasoning concepts
+- **LLM rubric grader** for paraphrase-tolerant evaluation
+- **Deterministic keyword fallback** — works with no LLM in dev
+
+### 9.3 Adversarial Robustness (Assess)
+
+For hiring contexts where candidates may try to reverse-engineer the scorer:
+
+1. **Hidden probe values** in the problem UI that must be referenced in the reasoning text
+2. **Ensemble scoring** — multiple models evaluate independently; divergence triggers manual review
+3. **Reasoning-vs-implementation gap** — low reasoning + high code = "pasted from AI" red flag
+4. **Time-boxed** with "explain in your own words" disincentive
+
+### 9.4 Process Hints (Socratic, Escalating)
+
+| Level | Old (answer) | New (process) |
+|:---:|---|---|
+| 1 | "Add Redis Sentinel." | "What happens to every request the moment that single Redis node dies?" |
+| 2 | "Use INCR for atomicity." | "Two requests read the counter at the same instant — what property does your update need?" |
+| 3 | "Here's the Lua script." | "You've named the property (atomic). Where in your read-modify-write is the gap?" |
+
+Hints cost reasoning score; usage is reported transparently for Assess contexts.
+
+---
+
+## 10. Competitive Landscape
 
 | Platform | Strengths | Weaknesses | Cascade's Advantage |
 |:---|---|:---|:---:|
@@ -433,7 +549,7 @@ This isn't a hypothetical. This exact chain has happened at multiple companies. 
 
 ---
 
-## 9. Content Pipeline
+## 12. Content Pipeline + Community UGC
 
 To keep the platform fresh, each system archetype needs **four artifacts**:
 
@@ -461,9 +577,42 @@ rate_limiter:
     - Max depth: 7
 ```
 
+### 12.1 Challenge-a-Friend (Viral Loop)
+
+Any user can build or pick a scenario → send a shareable link → friend must survive their cascade. Head-to-head comparison: who survived deeper, cheaper, with fewer hints, better reasoning score.
+
+- Every challenge is an invite with built-in intent ("bet you can't survive this outage")
+- Same primitive powers Assess (company sends a candidate a screen)
+- Drives Arena cold-start: challenges seed the competitive queue
+
+### 12.2 Community-Submitted Scenarios (UGC Content Moat)
+
+Users (especially seniors) author scenarios from real incidents they lived through. The pipeline is gated by quality, not speed:
+
+**Phased Plan:**
+
+| Phase | What | How |
+|:---:|---|---|
+| **v1** | Structured template (fill in blanks: trigger, condition, outcome, concern_ids) + manual review | Lowest tech risk; teaches the format |
+| **v2** | AI-assisted drafting from clean incident data (postmortem JSON, structured outage reports) | NLP surface area is bounded |
+| **v3** | Freeform prose → AI-drafted DAG | Full NLP research problem; only after v2 proves the pipeline |
+
+**Validation gate** (every submission):
+
+```
+Submit → PENDING REVIEW (~1-2 hrs)
+  → PASS → goes live (credited, author reputation)
+  → FAIL → private + specific reason + "resubmit"
+```
+
+Automated checks (instant): parses, valid transitions, reachable + survivable terminal, solvable, no orphans, not a near-duplicate.
+Human judgment (1-2 hr): causal fidelity, grounded in reality, honest level tag, Socratic hints, clear descriptions.
+
+**Why the delay is a moat, not friction:** a smaller-but-credible canon beats a bigger-but-junky one. This is the "faithful failure simulation" differentiator.
+
 ---
 
-## 10. Risks and Mitigations
+## 13. Risks and Mitigations
 
 | Risk | Impact | Likelihood | Mitigation |
 |:---|---|:---:|:---|
@@ -473,3 +622,7 @@ rate_limiter:
 | Blind Refactor feels like homework | Medium | Low | Gamify it. Score based on improvement. Show "archaeologist" ranking. |
 | Content creation bottleneck | High | High | Build authoring tools. Community-contributed scenarios. LLM-assisted codebase generation. |
 | Cascade chains feel contrived | High | Medium | Base all chains on real production post-mortems. Cite sources. |
+| **Trust leak between Practice & Assess** — users won't play honestly if they fear their profile hurts hireability | **Critical** | Medium | Clear data boundary: Practice profiles never shared with Assess without explicit, revocable opt-in. Separate consent flow. Publish trust architecture publicly. |
+| **Reasoning scorer gamed in Assess** — adversarial candidate reverse-engineers the scoring model | High | Medium | Ensemble scoring (multiple models, divergence → manual review). Hidden probe values in problem UI. Reasoning-vs-implementation gap detection. Time-boxed sessions. |
+| **UGC quality rot** — community submissions degrade canon with plausible-but-wrong failure models | High | Medium | Validation pipeline with automated integrity checks + human causal-fidelity review before publishing. Rejected scenarios remain private-playable (still usable in challenge-a-friend). |
+| **Adaptive hints leak answers** — personalized hints reveal too much, undermining the reasoning-first flow | Medium | Low | Hints are Socratic (question, never answer), reference user's pattern not the solution. Escalating levels cost reasoning score. Usage transparent for Assess. |
