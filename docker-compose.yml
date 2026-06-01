@@ -58,6 +58,15 @@ services:
       LEARN_ENGINE_URL: http://learn-engine:8093
     depends_on: [learn-engine]
 
+  insight-engine:
+    build:
+      context: .
+      dockerfile: services/insight-engine/Dockerfile
+    ports: ["8097:8097"]
+    environment:
+      CASCADE_ENGINE_URL: http://cascade-engine:8090
+    depends_on: [cascade-engine]
+
 volumes:
   pgdata:
   minio_data:

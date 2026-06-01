@@ -15,12 +15,39 @@ import (
 	"time"
 )
 
+var knownCapabilities = []string{
+	"redis", "sentinel", "cluster", "lua", "incr", "atomic",
+	"fallback", "circuit", "ttl", "cache", "replica", "shard",
+	"queue", "retry", "backoff", "timeout", "pool", "replicate",
+	"failover", "bloom", "proxy", "balancer", "batch", "async",
+}
+
 var (
 	startTime       = time.Now()
 	sessions        = map[string]*Session{}
 	sessMu          sync.Mutex
 	learnEngineURL  = "http://localhost:8093"
+	insightEngineURL = "http://localhost:8097"
+	telemetry       []TelemetryEntry
+	teleMu          sync.Mutex
 )
+
+type TelemetryEntry struct {
+	UserID             string   `json:"user_id"`
+	Mode               string   `json:"mode"`
+	Archetype          string   `json:"archetype"`
+	Node               string   `json:"node"`
+	ConcernIDs         []int    `json:"concern_ids"`
+	FixText            string   `json:"fix_text"`
+	CapabilitiesSeen   []string `json:"capabilities_detected"`
+	Outcome            string   `json:"outcome"`
+	LedTo              string   `json:"led_to"`
+	HintsUsed          int      `json:"hints_used"`
+	TimeToFixMs        int64    `json:"time_to_fix_ms"`
+	ReachedForFirst    string   `json:"reached_for_first"`
+	Missed             []string `json:"missed"`
+	TS                 string   `json:"ts"`
+}
 
 func init() {
 	if v := os.Getenv("LEARN_ENGINE_URL"); v != "" {
@@ -316,9 +343,10 @@ func submitFixHandler(w http.ResponseWriter, r *http.Request, sid string) {
 	s.Depth++
 	s.HintsRevealedHere = 0
 
+	outcome := "active"
 	if dag.IsTerminal(toNode) {
 		n, _ := dag.Node(toNode)
-		outcome := "survived"
+		outcome = "survived"
 		if n != nil && n.Outcome != "" {
 			outcome = n.Outcome
 		}
@@ -328,6 +356,56 @@ func submitFixHandler(w http.ResponseWriter, r *http.Request, sid string) {
 			s.Status = "failed"
 		}
 	}
+
+	// ── Signal layer telemetry ─────────────────────────────────────────────
+	fromNodeObj, _ := dag.Node(fromNode)
+	fixNorm := strings.ToLower(req.Fix)
+
+	var reachedForFirst string
+	var capabilitiesSeen []string
+	for _, cap := range knownCapabilities {
+		if strings.Contains(fixNorm, cap) {
+			capabilitiesSeen = append(capabilitiesSeen, cap)
+			if reachedForFirst == "" {
+				reachedForFirst = cap
+			}
+		}
+	}
+
+	var missed []string
+	if fromNodeObj != nil && fromNodeObj.SolutionSignature != nil {
+		reqSet := map[string]bool{}
+		for _, c := range capabilitiesSeen {
+			reqSet[c] = true
+		}
+		for _, r := range fromNodeObj.SolutionSignature.Required {
+			if !reqSet[r] {
+				missed = append(missed, r)
+			}
+		}
+	}
+
+	entry := TelemetryEntry{
+		UserID:           s.UserID,
+		Mode:             "cascade",
+		Archetype:        s.Archetype,
+		Node:             fromNode,
+		FixText:          req.Fix,
+		CapabilitiesSeen: capabilitiesSeen,
+		Outcome:          outcome,
+		LedTo:            toNode,
+		HintsUsed:        s.HintsUsed,
+		ReachedForFirst:  reachedForFirst,
+		Missed:           missed,
+		TS:               time.Now().UTC().Format(time.RFC3339),
+	}
+	if fromNodeObj != nil {
+		entry.ConcernIDs = fromNodeObj.ConcernIDs
+	}
+	teleMu.Lock()
+	telemetry = append(telemetry, entry)
+	teleMu.Unlock()
+	// ────────────────────────────────────────────────────────────────────────
 
 	result := map[string]any{
 		"session_id":  sid,
@@ -342,6 +420,161 @@ func submitFixHandler(w http.ResponseWriter, r *http.Request, sid string) {
 		result["score"] = score(s)
 	}
 	writeJSON(w, 200, result)
+}
+
+// ── Insight gate (Phase 3.6) ────────────────────────────────────────────────
+
+type insightReq struct {
+	Diagnosis   string `json:"diagnosis"`
+	Tradeoffs   string `json:"tradeoffs"`
+	Foresight   string `json:"foresight"`
+}
+
+type insightScore struct {
+	DiagnosisScore float64 `json:"diagnosis_score"`
+	TradeoffScore  float64 `json:"tradeoff_score"`
+	ForesightScore float64 `json:"foresight_score"`
+	Total          float64 `json:"total"`
+	Unlocked       bool    `json:"unlocked"`
+	ProcessHint    string  `json:"process_hint,omitempty"`
+}
+
+var insightSessions = map[string]*insightScore{}
+var insightMu sync.Mutex
+
+func insightGateHandler(w http.ResponseWriter, r *http.Request, sid string) {
+	s, dag, err := requireSession(sid)
+	if err != nil {
+		writeJSON(w, 404, map[string]string{"error": err.Error()})
+		return
+	}
+	n, err := dag.Node(s.CurrentNode)
+	if err != nil {
+		writeJSON(w, 404, map[string]string{"error": err.Error()})
+		return
+	}
+	var req insightReq
+	json.NewDecoder(r.Body).Decode(&req)
+
+	er := n.ExpectedReasoning
+	if er == nil {
+		// No expected reasoning -> auto-unlock
+		writeJSON(w, 200, insightScore{Unlocked: true})
+		return
+	}
+
+	// Simple keyword-based scoring (deterministic fallback)
+	normD := strings.ToLower(req.Diagnosis)
+	normT := strings.ToLower(req.Tradeoffs)
+	normF := strings.ToLower(req.Foresight)
+
+	diagScore := scoreKeywords(normD, er.Diagnosis)
+	tradeScore := scoreKeywords(normT, er.Tradeoffs)
+	foresightScore := scoreKeywords(normF, er.Foresight)
+
+	total := (diagScore + tradeScore + foresightScore) / 3.0
+	unlocked := total >= 0.3
+
+	var hint string
+	if !unlocked {
+		if diagScore < 0.3 {
+			hint = "Start by identifying the specific component that's failing — what resource is exhausted or unavailable?"
+		} else if tradeScore < 0.3 {
+			hint = "Your fix has a cost. What trade-off are you making? (Latency? Consistency? Cost?)"
+		} else {
+			hint = "Good diagnosis. Now think one step ahead — what new failure could your fix introduce?"
+		}
+	}
+
+	sc := insightScore{
+		DiagnosisScore: diagScore,
+		TradeoffScore:  tradeScore,
+		ForesightScore: foresightScore,
+		Total:          total,
+		Unlocked:       unlocked,
+		ProcessHint:    hint,
+	}
+
+	insightMu.Lock()
+	insightSessions[sid] = &sc
+	insightMu.Unlock()
+
+	writeJSON(w, 200, sc)
+}
+
+func scoreKeywords(text string, expected []string) float64 {
+	if len(expected) == 0 {
+		return 1.0
+	}
+	hits := 0
+	for _, kw := range expected {
+		if strings.Contains(text, strings.ToLower(kw)) {
+			hits++
+		}
+	}
+	return float64(hits) / float64(len(expected))
+}
+
+// ── Challenge-a-friend (Phase 5) ─────────────────────────────────────────────
+
+type challengeReq struct {
+	Archetype string `json:"archetype"`
+	UserID    string `json:"user_id"`
+}
+
+type challengeResp struct {
+	ChallengeID  string `json:"challenge_id"`
+	URL          string `json:"url"`
+	Archetype    string `json:"archetype"`
+	CreatedBy    string `json:"created_by"`
+}
+
+var challenges = map[string]*challengeResp{}
+var chalMu sync.Mutex
+
+func createChallengeHandler(w http.ResponseWriter, r *http.Request) {
+	var req challengeReq
+	json.NewDecoder(r.Body).Decode(&req)
+	if req.Archetype == "" {
+		req.Archetype = "rate-limiter"
+	}
+	if req.UserID == "" {
+		req.UserID = "anonymous"
+	}
+	cid := newID()
+	chal := &challengeResp{
+		ChallengeID: cid,
+		URL:         fmt.Sprintf("https://cascade.dev/challenge/%s", cid),
+		Archetype:   req.Archetype,
+		CreatedBy:   req.UserID,
+	}
+	chalMu.Lock()
+	challenges[cid] = chal
+	chalMu.Unlock()
+	writeJSON(w, 201, chal)
+}
+
+func acceptChallengeHandler(w http.ResponseWriter, r *http.Request, cid string) {
+	chalMu.Lock()
+	chal, ok := challenges[cid]
+	chalMu.Unlock()
+	if !ok {
+		writeJSON(w, 404, map[string]string{"error": "challenge not found"})
+		return
+	}
+	// Start a new session for the accepter with the challenge's archetype
+	body := strings.NewReader(fmt.Sprintf(`{"archetype":"%s","user_id":"challenge-%s"}`, chal.Archetype, cid))
+	r2, _ := http.NewRequest("POST", "/cascade/start", body)
+	r2.Header.Set("Content-Type", "application/json")
+	startHandler(w, r2)
+}
+
+func telemetryHandler(w http.ResponseWriter, r *http.Request) {
+	teleMu.Lock()
+	out := make([]TelemetryEntry, len(telemetry))
+	copy(out, telemetry)
+	teleMu.Unlock()
+	writeJSON(w, 200, out)
 }
 
 func summaryHandler(w http.ResponseWriter, r *http.Request, sid string) {
@@ -439,6 +672,21 @@ func cascadeRouter(w http.ResponseWriter, r *http.Request) {
 		startHandler(w, r)
 		return
 	}
+	// /cascade/telemetry
+	if len(parts) == 1 && parts[0] == "telemetry" && r.Method == http.MethodGet {
+		telemetryHandler(w, r)
+		return
+	}
+	// /cascade/challenge
+	if len(parts) == 1 && parts[0] == "challenge" && r.Method == http.MethodPost {
+		createChallengeHandler(w, r)
+		return
+	}
+	// /cascade/challenge/{cid}
+	if len(parts) == 2 && parts[0] == "challenge" && r.Method == http.MethodGet {
+		acceptChallengeHandler(w, r, parts[1])
+		return
+	}
 	if len(parts) >= 1 && parts[0] != "" {
 		sid := parts[0]
 		action := ""
@@ -456,6 +704,8 @@ func cascadeRouter(w http.ResponseWriter, r *http.Request) {
 			summaryHandler(w, r, sid)
 		case action == "dag" && r.Method == http.MethodGet:
 			dagDataHandler(w, r, sid)
+		case action == "insight" && r.Method == http.MethodPost:
+			insightGateHandler(w, r, sid)
 		default:
 			writeJSON(w, 404, map[string]string{"error": "not found"})
 		}

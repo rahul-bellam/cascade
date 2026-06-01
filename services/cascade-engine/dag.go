@@ -249,16 +249,24 @@ func evaluateCondition(cond string, ctx *FixContext) bool {
 
 // ── DAG model ───────────────────────────────────────────────────────────────
 
+type ExpectedReasoning struct {
+	Diagnosis []string `yaml:"diagnosis,omitempty"`
+	Tradeoffs []string `yaml:"tradeoffs,omitempty"`
+	Foresight []string `yaml:"foresight,omitempty"`
+}
+
 type DagNode struct {
-	ID                string                `yaml:"id"`
-	Type              string                `yaml:"type"`
-	Severity          string                `yaml:"severity,omitempty"`
-	Category          string                `yaml:"category,omitempty"`
-	Description       string                `yaml:"description,omitempty"`
-	Outcome           string                `yaml:"outcome,omitempty"`
-	Hints             []Hint                `yaml:"hints,omitempty"`
-	SolutionSignature *SolutionSignature     `yaml:"solution_signature,omitempty"`
-	Transitions       []DagTransition       `yaml:"transitions,omitempty"`
+	ID                string              `yaml:"id"`
+	Type              string              `yaml:"type"`
+	Severity          string              `yaml:"severity,omitempty"`
+	Category          string              `yaml:"category,omitempty"`
+	Description       string              `yaml:"description,omitempty"`
+	Outcome           string              `yaml:"outcome,omitempty"`
+	ConcernIDs        []int               `yaml:"concern_ids,omitempty"`
+	ExpectedReasoning *ExpectedReasoning  `yaml:"expected_reasoning,omitempty"`
+	Hints             []Hint              `yaml:"hints,omitempty"`
+	SolutionSignature *SolutionSignature  `yaml:"solution_signature,omitempty"`
+	Transitions       []DagTransition     `yaml:"transitions,omitempty"`
 }
 
 type Hint struct {

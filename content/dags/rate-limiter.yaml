@@ -31,6 +31,11 @@ nodes:
     severity: high
     category: data_loss
     description: "Server restart = counters lost. Attackers trigger restarts for unlimited access."
+    concern_ids: [21, 24]
+    expected_reasoning:
+      diagnosis: ["no persistence", "restart loses counters", "in memory state"]
+      tradeoffs: ["adds latency per request", "cache miss still falls back to db", "redis operational overhead"]
+      foresight: ["redis becomes single point of failure", "memory exhaustion without ttl"]
     solution_signature:
       required: [external_cache]
       preferred: redis_with_ttl
@@ -49,6 +54,11 @@ nodes:
     severity: critical
     category: availability
     description: "Redis crashes at 2:47 AM. All limits lost. 50k requests bypass before recovery."
+    concern_ids: [43, 115, 122]
+    expected_reasoning:
+      diagnosis: ["single point of failure", "redis is the bottleneck", "no high availability"]
+      tradeoffs: ["ha adds cost and ops complexity", "fallback risks over permitting", "sentinel adds failover delay"]
+      foresight: ["sentinel leads to memory growth without ttl", "replica lag can cause inconsistent limits"]
     solution_signature:
       required: [high_availability]
       preferred: redis_sentinel
