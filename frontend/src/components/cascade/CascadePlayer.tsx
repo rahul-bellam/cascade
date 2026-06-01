@@ -6,15 +6,15 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
 import { SeverityBadge } from '../ui/SeverityBadge';
-import { IconBolt, IconLightbulb, IconToolbox, IconShield, IconSkull, IconRefresh, IconSpinner } from '../ui/icons';
+import { IconBolt, IconLightbulb, IconToolbox, IconShield, IconSkull, IconSpinner } from '../ui/icons';
 
 const USER_ID = 'demo-user';
 
 const SEV_COLORS: Record<string, string> = {
   critical: 'bg-black border border-[#ff3333] text-[#ff3333]',
   high: 'bg-black border border-[#ff3333] text-[#ff3333]',
-  medium: 'bg-black border border-[#006622] text-[#006622]',
-  low: 'bg-black border border-[#1a1a1a] text-slate-600',
+  medium: 'bg-black border border-[#c0c0c0] text-[#c0c0c0]',
+  low: 'bg-black border border-[#1a1a1a] text-[#c0c0c0]',
 };
 
 const DagNode = ({ data }: any) => {
@@ -28,20 +28,20 @@ const DagNode = ({ data }: any) => {
   else if (isTerminal) {
     if (outcome === 'survived') borderColor = 'border-[#00ff41] bg-black';
     else borderColor = 'border-[#ff3333] bg-black';
-  } else if (isVisited) borderColor = 'border-slate-700';
+  } else if (isVisited) borderColor = 'border-[#c0c0c0]';
 
   return (
     <div className={`px-4 py-3 border bg-black text-[#00ff41] min-w-[200px] max-w-[250px] ${borderColor} transition-all duration-300 font-mono`}>
       <Handle type="target" position={Position.Top} className="!bg-[#1a1a1a]" />
       <div className="flex justify-between items-center mb-2">
-        <span className="text-[10px] text-slate-600 truncate">{data.id}</span>
+        <span className="text-[10px] text-[#c0c0c0] truncate">{data.id}</span>
         {data.severity && (
-          <span className={`text-[10px] px-1.5 py-0.5 uppercase font-bold ${SEV_COLORS[data.severity] || 'border border-[#1a1a1a] text-slate-600'}`}>
+          <span className={`text-[10px] px-1.5 py-0.5 uppercase font-bold ${SEV_COLORS[data.severity] || 'border border-[#1a1a1a] text-[#c0c0c0]'}`}>
             {data.severity}
           </span>
         )}
       </div>
-      <div className="text-xs leading-relaxed text-slate-500">{data.description}</div>
+      <div className="text-xs leading-relaxed text-[#c0c0c0]">{data.description}</div>
       <Handle type="source" position={Position.Bottom} className="!bg-[#1a1a1a]" />
     </div>
   );
@@ -179,11 +179,11 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
           <h1 className="text-sm font-bold flex items-center gap-2">
             <IconBolt width={14} height={14} className="text-[#00ff41]" /> $ cascade_engine
           </h1>
-          <span className="text-xs border border-[#1a1a1a] px-2 py-0.5 text-slate-600">
+          <span className="text-xs border border-[#1a1a1a] px-2 py-0.5 text-[#c0c0c0]">
             {name || archetype}
           </span>
         </div>
-        <button onClick={begin} className="text-xs px-3 py-1 border border-[#1a1a1a] text-slate-500 hover:text-[#00ff41] hover:border-[#00ff41] bg-transparent">restart</button>
+        <button onClick={begin} className="text-xs px-3 py-1 border border-[#c0c0c0] text-[#c0c0c0] hover:bg-[#c0c0c0] hover:text-black bg-transparent">restart</button>
       </header>
 
       <main className="flex-1 flex overflow-hidden">
@@ -196,25 +196,25 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
             <div className="p-6 flex flex-col gap-6">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xs uppercase text-slate-600 tracking-wider">$ current_issue</h2>
+                  <h2 className="text-xs uppercase text-[#c0c0c0] tracking-wider">$ current_issue</h2>
                   <SeverityBadge severity={node.severity || node.type} />
                 </div>
 
                 <div className="bg-black border border-[#1a1a1a] p-4">
-                  <p className="text-sm leading-relaxed text-slate-500">{node.description}</p>
+                  <p className="text-sm leading-relaxed text-[#c0c0c0]">{node.description}</p>
                 </div>
 
                 <div className="flex gap-2">
-                  <span className="text-[10px] px-2 py-1 border border-[#1a1a1a] text-slate-600">id: {node.node_id}</span>
+                  <span className="text-[10px] px-2 py-1 border border-[#1a1a1a] text-[#c0c0c0]">id: {node.node_id}</span>
                   {node.category && (
-                    <span className="text-[10px] px-2 py-1 border border-[#1a1a1a] text-slate-600">cat: {node.category}</span>
+                    <span className="text-[10px] px-2 py-1 border border-[#1a1a1a] text-[#c0c0c0]">cat: {node.category}</span>
                   )}
                 </div>
               </div>
 
               {node.suggested_toolkit?.length > 0 && (
                 <div className="space-y-2">
-                  <h2 className="text-xs uppercase text-slate-600 tracking-wider flex items-center gap-2">
+                  <h2 className="text-xs uppercase text-[#c0c0c0] tracking-wider flex items-center gap-2">
                     <IconToolbox width={12} height={12} /> $ toolkit
                   </h2>
                   <div className="flex flex-wrap gap-2">
@@ -225,7 +225,7 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
                         className={`text-xs px-3 py-1.5 border transition-colors font-mono ${
                           t.relevant
                             ? 'border-[#00ff41] text-[#00ff41] bg-[#00ff41]/10'
-                            : 'border-[#1a1a1a] text-slate-600 hover:border-slate-700'
+                            : 'border-[#1a1a1a] text-[#c0c0c0] hover:border-[#c0c0c0]'
                         }`}
                         title={t.code}
                       >
@@ -237,7 +237,7 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
               )}
 
               <div className="space-y-2 flex-1">
-                <h2 className="text-xs uppercase text-slate-600 tracking-wider">$ submit_fix</h2>
+                <h2 className="text-xs uppercase text-[#c0c0c0] tracking-wider">$ submit_fix</h2>
                 <textarea
                   value={fix}
                   onChange={(e) => setFix(e.target.value)}
@@ -249,14 +249,14 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
                   <button
                     onClick={submitFix}
                     disabled={busy || !fix.trim()}
-                    className="flex-1 px-4 py-2 border border-[#00ff41] text-[#00ff41] bg-transparent hover:bg-[#00ff41]/10 text-sm font-mono disabled:opacity-30"
+                    className="flex-1 px-4 py-2 border border-[#00ff41] text-[#00ff41] bg-transparent hover:bg-[#00ff41] hover:text-black text-sm font-mono disabled:opacity-30"
                   >
                     {busy ? <span className="inline-flex items-center gap-1.5"><IconSpinner width={14} height={14} /> evaluating...</span> : '$ apply_fix'}
                   </button>
                   <button
                     onClick={revealHint}
                     disabled={hintLevel >= (node.hint_count || 0)}
-                    className="px-4 py-2 border border-[#1a1a1a] text-slate-500 hover:text-[#00ff41] hover:border-[#00ff41] text-xs font-mono disabled:opacity-30 bg-transparent"
+                    className="px-4 py-2 border border-[#c0c0c0] text-[#c0c0c0] hover:bg-[#c0c0c0] hover:text-black text-xs font-mono disabled:opacity-30 bg-transparent"
                   >
                     $ hint ({hintLevel}/{node.hint_count || 0})
                   </button>
@@ -266,8 +266,8 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
               {hints.length > 0 && (
                 <div className="space-y-2 border border-[#1a1a1a] p-4">
                   {hints.map((h, i) => (
-                    <div key={i} className="text-xs flex gap-2 text-slate-500 font-mono">
-                      <span className="text-slate-600">&gt;</span>
+                    <div key={i} className="text-xs flex gap-2 text-[#c0c0c0] font-mono">
+                      <span className="text-[#c0c0c0]">&gt;</span>
                       <span>{h.text}</span>
                     </div>
                   ))}
@@ -277,20 +277,20 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
           )}
 
           <div className="p-6 border-t border-[#1a1a1a] bg-black flex-1 overflow-y-auto">
-            <h2 className="text-xs uppercase text-slate-600 tracking-wider mb-4">$ chain_log</h2>
+            <h2 className="text-xs uppercase text-[#c0c0c0] tracking-wider mb-4">$ chain_log</h2>
             {chain.length === 0 && !done && (
-              <div className="text-xs text-slate-700 italic">no actions yet.</div>
+              <div className="text-xs text-[#c0c0c0] italic">no actions yet.</div>
             )}
             <div className="space-y-4">
               {chain.map((c, i) => (
                 <div key={i} className="relative pl-4 border-l-2 border-[#1a1a1a] pb-4 last:pb-0">
                   <div className="absolute w-2 h-2 bg-[#00ff41] -left-[5px] top-1"></div>
-                  <div className="text-[10px] text-slate-600 mb-1 font-mono">step {i + 1}</div>
-                  <div className="text-xs text-slate-500 mb-2">{c.from.description}</div>
+                  <div className="text-[10px] text-[#c0c0c0] mb-1 font-mono">step {i + 1}</div>
+                  <div className="text-xs text-[#c0c0c0] mb-2">{c.from.description}</div>
                   <div className="border border-[#1a1a1a] p-2 text-xs font-mono text-[#00ff41]">
                     &gt; {c.fix}
                   </div>
-                  <div className="text-[10px] text-slate-600 mt-2 flex items-center gap-1 font-mono">
+                  <div className="text-[10px] text-[#c0c0c0] mt-2 flex items-center gap-1 font-mono">
                     <span>{'->'}</span> {c.to.node_id}
                   </div>
                 </div>
@@ -310,10 +310,10 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
               className="bg-black"
             >
               <Background color="#0a0a0a" gap={16} />
-              <Controls className="!bg-black !border-[#1a1a1a] !text-[#00ff41] [&_button]:!text-slate-600 [&_button:hover]:!text-[#00ff41]" />
+              <Controls className="!bg-black !border-[#1a1a1a] !text-[#c0c0c0] [&_button]:!text-[#c0c0c0] [&_button:hover]:!text-[#00ff41]" />
             </ReactFlow>
           ) : (
-            <div className="flex items-center justify-center h-full text-sm text-slate-700 font-mono">
+            <div className="flex items-center justify-center h-full text-sm text-[#c0c0c0] font-mono">
               loading DAG...
             </div>
           )}
@@ -326,7 +326,7 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
                   <h2 className="text-xl font-bold mb-2 font-mono">
                     {done.status === 'survived' ? '$ system_stabilized' : '> catastrophic_failure'}
                   </h2>
-                  <div className="flex justify-center gap-4 text-xs font-mono text-slate-600">
+                  <div className="flex justify-center gap-4 text-xs font-mono text-[#c0c0c0]">
                     <span>score: <strong className="text-[#00ff41]">{summary.score}</strong></span>
                     <span>depth: <strong>{summary.depth}</strong></span>
                     <span>hints: <strong>{summary.hints_used}</strong></span>
@@ -334,21 +334,21 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
                 </div>
 
                 <div className="border border-[#1a1a1a] p-4 mb-6 max-h-64 overflow-y-auto">
-                  <h3 className="text-xs uppercase text-slate-600 tracking-wider mb-4 font-mono">$ postmortem</h3>
+                  <h3 className="text-xs uppercase text-[#c0c0c0] tracking-wider mb-4 font-mono">$ postmortem</h3>
                   <div className="space-y-4">
                     {summary.path.map((p: any, i: number) => (
                       <div key={i} className="text-xs font-mono">
-                        <div className="text-[10px] text-slate-700 mb-1">step {p.step}</div>
-                        <div className="mb-1 text-slate-500">issue: {p.problem}</div>
+                        <div className="text-[10px] text-[#c0c0c0] mb-1">step {p.step}</div>
+                        <div className="mb-1 text-[#c0c0c0]">issue: {p.problem}</div>
                         <div className="mb-1 text-[#00ff41]">fix: {p.your_fix}</div>
-                        <div className="text-slate-600">result: {p.led_to_problem}</div>
+                        <div className="text-[#c0c0c0]">result: {p.led_to_problem}</div>
                       </div>
                     ))}
                   </div>
                 </div>
 
                 <div className="flex justify-center">
-                  <button onClick={begin} className="px-6 py-3 border border-[#00ff41] text-[#00ff41] bg-transparent hover:bg-[#00ff41]/10 font-mono">$ new_simulation</button>
+                  <button onClick={begin} className="px-6 py-3 border border-[#00ff41] text-[#00ff41] bg-transparent hover:bg-[#00ff41] hover:text-black font-mono">$ new_simulation</button>
                 </div>
               </div>
             </div>

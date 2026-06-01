@@ -3,7 +3,7 @@ import dynamic from 'next/dynamic';
 
 const Monaco = dynamic(() => import('@monaco-editor/react').then((m) => m.default), {
   ssr: false,
-  loading: () => <div className="p-3 text-[#006622] text-sm font-mono">loading editor...</div>,
+  loading: () => <div className="p-3 text-[#c0c0c0] text-sm font-mono">loading editor...</div>,
 });
 
 export function CodeEditor({
@@ -26,7 +26,7 @@ export function CodeEditor({
     <div className="h-full relative">
       <button
         onClick={() => setUseFallback(true)}
-        className="absolute z-10 right-2 top-2 text-[10px] px-2 py-0.5 border border-[#1a1a1a] text-slate-600 hover:text-[#00ff41] bg-black"
+        className="absolute z-10 right-2 top-2 text-[10px] px-2 py-0.5 border border-[#c0c0c0] text-[#c0c0c0] hover:bg-[#c0c0c0] hover:text-black bg-black"
         title="Switch to plain editor"
       >
         plain

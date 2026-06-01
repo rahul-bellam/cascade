@@ -4,8 +4,8 @@ import { IconAlert, IconBolt, IconShield } from './icons';
 const MAP: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
   critical: { color: 'border-[#ff3333] text-[#ff3333] bg-[#ff3333]/10', icon: <IconBolt width={13} height={13} />, label: 'critical' },
   high: { color: 'border-[#ff3333] text-[#ff3333] bg-[#ff3333]/5', icon: <IconAlert width={13} height={13} />, label: 'high' },
-  medium: { color: 'border-[#006622] text-[#006622] bg-[#006622]/10', icon: <IconAlert width={13} height={13} />, label: 'medium' },
-  low: { color: 'border-[#1a1a1a] text-slate-600 bg-black', icon: <IconShield width={13} height={13} />, label: 'low' },
+  medium: { color: 'border-[#c0c0c0] text-[#c0c0c0] bg-black', icon: <IconAlert width={13} height={13} />, label: 'medium' },
+  low: { color: 'border-[#1a1a1a] text-[#c0c0c0] bg-black', icon: <IconShield width={13} height={13} />, label: 'low' },
 };
 
 export function SeverityBadge({ severity }: { severity?: string }) {

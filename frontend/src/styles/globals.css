@@ -49,6 +49,11 @@ html, body {
     @apply border border-[#1a1a1a] bg-[#0a0a0a] p-4;
   }
   .terminal-btn {
+    @apply border border-[#c0c0c0] text-[#c0c0c0] px-4 py-2 text-sm
+           hover:bg-[#c0c0c0] hover:text-black transition-colors duration-150
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .terminal-btn-green {
     @apply border border-[#00ff41] text-[#00ff41] px-4 py-2 text-sm
            hover:bg-[#00ff41] hover:text-black transition-colors duration-150
            disabled:opacity-40 disabled:cursor-not-allowed;

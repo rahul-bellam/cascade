@@ -31,7 +31,7 @@ export default function App({ Component, pageProps }: AppProps) {
               key={n.href}
               href={n.href}
               className={`hover:text-[#00cc33] transition-colors ${
-                router.pathname.startsWith(n.href) ? 'text-[#00ff41] underline underline-offset-4 decoration-[#00ff41]' : 'text-[#006622]'
+                router.pathname.startsWith(n.href) ? 'text-[#00ff41] underline underline-offset-4 decoration-[#00ff41]' : 'text-[#c0c0c0]'
               }`}
             >
               {n.label}
@@ -39,7 +39,7 @@ export default function App({ Component, pageProps }: AppProps) {
           ))}
         </nav>
         <div className="ml-auto">
-          <Link href="/login" className="text-sm border border-[#1a1a1a] px-3 py-1 hover:border-[#00ff41] transition-colors">
+          <Link href="/login" className="text-sm border border-[#c0c0c0] text-[#c0c0c0] px-3 py-1 hover:bg-[#c0c0c0] hover:text-black transition-colors">
             login
           </Link>
         </div>
@@ -47,7 +47,7 @@ export default function App({ Component, pageProps }: AppProps) {
       <main className="p-6 max-w-6xl mx-auto">
         <Component {...pageProps} />
       </main>
-      <footer className="h-10 flex items-center justify-center border-t border-[#1a1a1a] text-[#004d1a] text-xs">
+      <footer className="h-10 flex items-center justify-center border-t border-[#1a1a1a] text-[#c0c0c0] text-xs">
         cascade v1.0 — [system design terminal]
       </footer>
     </div>

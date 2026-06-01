@@ -67,14 +67,14 @@ export function ConstraintSession({ archetype = 'rate-limiter' }: { archetype?: 
     <div className="p-4 text-[#00ff41]">
       <div className="flex items-center justify-between mb-3 border-b border-[#1a1a1a] pb-3">
         <h1 className="text-lg font-bold font-mono">$ constraint_unlock — {name || archetype}</h1>
-        <button onClick={begin} className="text-sm px-3 py-1 border border-[#1a1a1a] text-slate-500 hover:text-[#00ff41] hover:border-[#00ff41] bg-transparent font-mono">restart</button>
+        <button onClick={begin} className="text-sm px-3 py-1 border border-[#c0c0c0] text-[#c0c0c0] hover:bg-[#c0c0c0] hover:text-black bg-transparent font-mono">restart</button>
       </div>
       {err && <div className="border border-[#ff3333] bg-[#ff3333]/10 text-[#ff3333] p-3 mb-3 text-sm font-mono">&gt; error: {err}</div>}
 
       <div className="flex gap-2 mb-4">
-        {origin && <span className="px-2 py-1 text-xs border border-[#1a1a1a] text-slate-500 font-mono">origin ✓</span>}
+        {origin && <span className="px-2 py-1 text-xs border border-[#1a1a1a] text-[#c0c0c0] font-mono">origin ✓</span>}
         {[1, 2, 3].map((n) => (
-          <span key={n} className={`px-2 py-1 text-xs border font-mono ${cleared.includes(n) ? 'border-[#00ff41] text-[#00ff41]' : level?.level === n ? 'border-[#00ff41] text-[#00ff41] bg-[#00ff41]/10' : 'border-[#1a1a1a] text-slate-600'}`}>
+          <span key={n} className={`px-2 py-1 text-xs border font-mono ${cleared.includes(n) ? 'border-[#00ff41] text-[#00ff41]' : level?.level === n ? 'border-[#00ff41] text-[#00ff41] bg-[#00ff41]/10' : 'border-[#1a1a1a] text-[#c0c0c0]'}`}>
             l{n} {cleared.includes(n) ? '✓' : ''}
           </span>
         ))}
@@ -83,26 +83,26 @@ export function ConstraintSession({ archetype = 'rate-limiter' }: { archetype?: 
       {done ? (
         <div className="border border-[#00ff41] p-8 text-center">
           <div className="text-xl font-bold mb-1 text-[#00ff41] font-mono">$ constraint_unlock complete</div>
-          <div className="text-slate-500 font-mono text-sm">all constraints survived · score <b className="text-[#00ff41]">{done.score}</b></div>
-          <button onClick={begin} className="mt-4 px-4 py-2 border border-[#00ff41] text-[#00ff41] bg-transparent hover:bg-[#00ff41]/10 font-mono">$ restart</button>
+          <div className="text-[#c0c0c0] font-mono text-sm">all constraints survived · score <b className="text-[#00ff41]">{done.score}</b></div>
+          <button onClick={begin} className="mt-4 px-4 py-2 border border-[#00ff41] text-[#00ff41] bg-transparent hover:bg-[#00ff41] hover:text-black font-mono">$ restart</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100vh-12rem)]">
           <div className="flex flex-col gap-3 overflow-y-auto">
             {level && (
               <div className="border border-[#1a1a1a] p-4">
-                <div className="text-xs text-slate-600 mb-1 font-mono">$ constraint · level {level.level}</div>
+                <div className="text-xs text-[#c0c0c0] mb-1 font-mono">$ constraint · level {level.level}</div>
                 <div className="font-semibold mb-1 text-[#00ff41] font-mono text-sm">{level.title}</div>
-                <p className="text-xs text-slate-500 mb-2 font-mono">{level.impact}</p>
-                <div className="text-xs text-slate-600 font-mono">target {level.target_rps} rps · p99 ≤ {level.latency_sla_ms}ms · errors ≤ {level.error_sla_pct}%</div>
+                <p className="text-xs text-[#c0c0c0] mb-2 font-mono">{level.impact}</p>
+                <div className="text-xs text-[#c0c0c0] font-mono">target {level.target_rps} rps · p99 ≤ {level.latency_sla_ms}ms · errors ≤ {level.error_sla_pct}%</div>
               </div>
             )}
             {toolkit.length > 0 && (
               <div className="border border-[#1a1a1a] p-4">
-                <div className="text-xs text-slate-600 mb-2 font-mono"># toolkit (from learn)</div>
+                <div className="text-xs text-[#c0c0c0] mb-2 font-mono"># toolkit (from learn)</div>
                 {toolkit.map((t, i) => (
                   <button key={i} onClick={() => insertSnippet(t)}
-                    className={`block w-full text-left text-xs px-2 py-1 mb-1 border font-mono ${t.relevant ? 'border-[#00ff41] text-[#00ff41] bg-[#00ff41]/10' : 'border-[#1a1a1a] text-slate-500 hover:border-slate-700'}`}>
+                    className={`block w-full text-left text-xs px-2 py-1 mb-1 border font-mono ${t.relevant ? 'border-[#00ff41] text-[#00ff41] bg-[#00ff41]/10' : 'border-[#1a1a1a] text-[#c0c0c0] hover:border-[#c0c0c0]'}`}>
                     {t.relevant ? '> ' : '  '}{t.toolkit_key}
                   </button>
                 ))}
@@ -110,12 +110,12 @@ export function ConstraintSession({ archetype = 'rate-limiter' }: { archetype?: 
             )}
             <div className="flex gap-2">
               <button onClick={revealHint} disabled={hintLevel >= (level?.hint_count || 0)}
-                className="px-3 py-2 border border-[#1a1a1a] text-slate-500 hover:text-[#00ff41] hover:border-[#00ff41] text-xs font-mono disabled:opacity-30 bg-transparent">
+                className="px-3 py-2 border border-[#c0c0c0] text-[#c0c0c0] hover:bg-[#c0c0c0] hover:text-black text-xs font-mono disabled:opacity-30 bg-transparent">
                 $ hint ({hintLevel}/{level?.hint_count || 0})
               </button>
             </div>
             {hints.length > 0 && (
-              <div className="border border-[#1a1a1a] p-2 text-slate-500 text-xs font-mono space-y-1">
+              <div className="border border-[#1a1a1a] p-2 text-[#c0c0c0] text-xs font-mono space-y-1">
                 {hints.map((h, i) => <div key={i}>&gt; {h}</div>)}
               </div>
             )}
@@ -125,7 +125,7 @@ export function ConstraintSession({ archetype = 'rate-limiter' }: { archetype?: 
             <div className="flex-1 min-h-[200px]"><CodeEditor value={code} onChange={setCode} language="python" /></div>
             <div className="p-2 border-t border-[#1a1a1a]">
               <button onClick={submit} disabled={busy}
-                className="px-4 py-2 border border-[#00ff41] text-[#00ff41] bg-transparent hover:bg-[#00ff41]/10 text-sm font-mono disabled:opacity-30">
+                className="px-4 py-2 border border-[#00ff41] text-[#00ff41] bg-transparent hover:bg-[#00ff41] hover:text-black text-sm font-mono disabled:opacity-30">
                 {busy ? 'simulating...' : '$ apply_fix && load_test'}
               </button>
             </div>

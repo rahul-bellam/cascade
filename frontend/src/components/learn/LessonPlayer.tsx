@@ -48,26 +48,26 @@ export function LessonPlayer({ lesson }: { lesson: any }) {
           <button
             onClick={submit}
             disabled={running}
-            className="px-4 py-2 border border-[#00ff41] text-[#00ff41] bg-transparent hover:bg-[#00ff41]/10 text-sm font-mono disabled:opacity-30"
+            className="px-4 py-2 border border-[#00ff41] text-[#00ff41] bg-transparent hover:bg-[#00ff41] hover:text-black text-sm font-mono disabled:opacity-30"
           >
             {running ? 'running...' : '$ submit'}
           </button>
           <button
             onClick={revealHint}
             disabled={hintLevel >= (lesson.hint_count || 3)}
-            className="px-3 py-2 border border-[#1a1a1a] text-slate-500 hover:text-[#00ff41] hover:border-[#00ff41] text-xs font-mono disabled:opacity-30 bg-transparent"
+            className="px-3 py-2 border border-[#c0c0c0] text-[#c0c0c0] hover:bg-[#c0c0c0] hover:text-black text-xs font-mono disabled:opacity-30 bg-transparent"
           >
             $ hint ({hintLevel}/{lesson.hint_count || 3})
           </button>
           <button
             onClick={() => { setCode(lesson.snippet_starter_code || ''); setResult(null); }}
-            className="px-3 py-2 text-slate-600 hover:text-slate-500 text-xs font-mono bg-transparent"
+            className="px-3 py-2 text-[#c0c0c0] hover:text-[#00ff41] text-xs font-mono bg-transparent"
           >
             reset
           </button>
         </div>
         {hints.length > 0 && (
-          <div className="px-4 py-2 border-t border-[#1a1a1a] text-slate-500 text-xs font-mono space-y-1">
+          <div className="px-4 py-2 border-t border-[#1a1a1a] text-[#c0c0c0] text-xs font-mono space-y-1">
             {hints.map((h, i) => <div key={i}>&gt; l{h.level}: {h.text}</div>)}
           </div>
         )}

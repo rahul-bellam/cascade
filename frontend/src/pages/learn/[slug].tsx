@@ -20,11 +20,11 @@ export default function LessonPage() {
     <div className="min-h-screen bg-black text-[#00ff41]">
       <Head><title>{lesson?.title || 'Lesson'} — Cascade</title></Head>
       <div className="h-14 flex items-center px-6 border-b border-[#1a1a1a]">
-        <Link href="/learn" className="text-slate-600 hover:text-[#00ff41] text-sm font-mono">← $ lessons</Link>
+        <Link href="/learn" className="text-[#c0c0c0] hover:text-[#00ff41] text-sm font-mono">← $ lessons</Link>
         <span className="ml-4 text-sm font-mono text-[#00ff41]">{lesson?.title}</span>
       </div>
       {err && <div className="m-6 border border-[#ff3333] bg-[#ff3333]/10 text-[#ff3333] p-3 text-sm font-mono">&gt; error: {err}</div>}
-      {lesson ? <LessonPlayer lesson={lesson} /> : !err && <div className="p-8 text-slate-600 font-mono">$ loading...</div>}
+      {lesson ? <LessonPlayer lesson={lesson} /> : !err && <div className="p-8 text-[#c0c0c0] font-mono">$ loading...</div>}
     </div>
   );
 }

@@ -32,7 +32,7 @@ export function LeagueStandings() {
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-[#00ff41] font-mono text-lg animate-pulse">$ loading_standings...</div>
+        <div className="text-[#c0c0c0] font-mono text-lg animate-pulse">$ loading_standings...</div>
       </div>
     );
   }
@@ -41,7 +41,7 @@ export function LeagueStandings() {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center">
         <div className="text-[#ff3333] font-mono text-lg mb-4">&gt; error: system_error</div>
-        <div className="text-slate-500 font-mono text-sm">{error}</div>
+        <div className="text-[#c0c0c0] font-mono text-sm">{error}</div>
       </div>
     );
   }
@@ -49,7 +49,7 @@ export function LeagueStandings() {
   if (!season) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-slate-600 font-mono text-lg">$ no_active_season</div>
+        <div className="text-[#c0c0c0] font-mono text-lg">$ no_active_season</div>
       </div>
     );
   }
@@ -62,12 +62,12 @@ export function LeagueStandings() {
         <header className="mb-8 border-b border-[#1a1a1a] pb-4">
           <div className="flex justify-between items-end">
             <div>
-              <div className="text-xs text-slate-600 mb-1">$ current_season</div>
+              <div className="text-xs text-[#c0c0c0] mb-1">$ current_season</div>
               <h1 className="text-2xl font-bold text-[#00ff41]">{season.name}</h1>
             </div>
             <div className="text-right">
               <div className="text-lg font-bold text-[#ff3333]">{daysLeft}d remaining</div>
-              <div className="text-xs text-slate-600">until roster lock</div>
+              <div className="text-xs text-[#c0c0c0]">until roster lock</div>
             </div>
           </div>
         </header>
@@ -80,7 +80,7 @@ export function LeagueStandings() {
               className={`px-6 py-2 text-sm font-mono border transition-colors ${
                 division === div
                   ? 'border-[#00ff41] text-[#00ff41] bg-[#00ff41]/10'
-                  : 'border-[#1a1a1a] text-slate-600 hover:border-slate-700'
+                  : 'border-[#c0c0c0] text-[#c0c0c0] hover:bg-[#c0c0c0] hover:text-black'
               }`}
             >
               {div}
@@ -91,7 +91,7 @@ export function LeagueStandings() {
         <div className="border border-[#1a1a1a] overflow-hidden">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-[#1a1a1a] text-xs text-slate-600 uppercase tracking-wider">
+              <tr className="border-b border-[#1a1a1a] text-xs text-[#c0c0c0] uppercase tracking-wider">
                 <th className="p-3 w-16 text-center">rank</th>
                 <th className="p-3">player</th>
                 <th className="p-3 w-24">elo</th>
@@ -103,7 +103,7 @@ export function LeagueStandings() {
             <tbody>
               {standings.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-6 text-center text-slate-600 text-sm">
+                  <td colSpan={6} className="p-6 text-center text-[#c0c0c0] text-sm">
                     $ no_players_in_division
                   </td>
                 </tr>
@@ -111,20 +111,20 @@ export function LeagueStandings() {
                 standings.map((user, idx) => (
                   <tr key={user.user_id} className={`border-b border-[#1a1a1a]/50 hover:bg-[#00ff41]/5 transition-colors ${idx < 3 ? 'bg-[#00ff41]/5' : ''}`}>
                     <td className="p-3 text-center font-bold font-mono">
-                      <span className={`${idx === 0 ? 'text-[#ff3333] text-lg' : idx === 1 ? 'text-[#00ff41]' : idx === 2 ? 'text-[#006622]' : 'text-slate-600'}`}>
+                      <span className={`${idx === 0 ? 'text-[#ff3333] text-lg' : idx === 1 ? 'text-[#00ff41]' : idx === 2 ? 'text-[#c0c0c0]' : 'text-[#c0c0c0]'}`}>
                         {user.rank}
                       </span>
                     </td>
                     <td className="p-3 font-bold text-[#00ff41]">{user.user_id}</td>
-                    <td className="p-3 text-slate-500">{user.elo}</td>
-                    <td className="p-3 text-slate-500">
+                    <td className="p-3 text-[#c0c0c0]">{user.elo}</td>
+                    <td className="p-3 text-[#c0c0c0]">
                       <span className="text-[#00ff41]">{user.wins}</span> - <span className="text-[#ff3333]">{user.losses}</span>
                     </td>
                     <td className="p-3 text-[#00ff41] font-bold">{user.points}</td>
                     <td className="p-3 text-center">
                       {user.trend === 'promoted' && <span className="text-[#00ff41] text-xs">↑ promoted</span>}
                       {user.trend === 'relegated' && <span className="text-[#ff3333] text-xs">↓ relegated</span>}
-                      {user.trend === 'same' && <span className="text-slate-600">—</span>}
+                      {user.trend === 'same' && <span className="text-[#c0c0c0]">—</span>}
                     </td>
                   </tr>
                 ))
