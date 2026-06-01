@@ -1,7 +1,15 @@
 #!/bin/bash
-for f in scripts/migrations/*.sql; do
+set -e
+
+MIGRATIONS_DIR="$(dirname "$0")/migrations"
+if [ -z "$DATABASE_URL" ]; then
+    DATABASE_URL="postgres://postgres:cascade_dev@localhost:5432/cascade?sslmode=disable"
+fi
+
+for f in "$MIGRATIONS_DIR"/*.sql; do
     echo "Running $f..."
-    # Normally we would: psql $DATABASE_URL -f "$f"
-    # But since this is just the script stub required by Phase 7:
-    echo "psql \$DATABASE_URL -f \"$f\""
+    psql "$DATABASE_URL" -f "$f" -q
+    echo "  ✅ $(basename "$f") applied"
 done
+
+echo "All migrations applied successfully."
