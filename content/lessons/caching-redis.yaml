@@ -1,0 +1,65 @@
+slug: caching-redis
+title: "Caching with Redis"
+prerequisites: []
+estimated_minutes: 10
+order_index: 1
+toolkit_key: cache_with_redis
+
+concept:
+  - type: text
+    body: >
+      Caching stores frequently accessed data in fast memory so you don't pay
+      the cost of recomputing it or hitting a slow database every time. The
+      classic pattern is "cache-aside": check the cache first, and only fall
+      back to the source of truth on a miss.
+  - type: text
+    body: >
+      TTL (time-to-live) is what keeps a cache from serving stale data forever.
+      Every cached entry expires after some number of seconds, forcing a fresh
+      read. Too long and you serve stale data; too short and you hammer the DB.
+  - type: code_block
+    language: python
+    code: |
+      # Cache-aside pattern
+      def get_cached(key, fetch_fn, ttl):
+          data = redis.get(key)
+          if data is not None:
+              return data
+          data = fetch_fn()
+          redis.setex(key, ttl, data)
+          return data
+
+snippet:
+  prompt: |
+    Implement getCached(key, fetchFn, ttl) that:
+    1. Checks Redis for the key.
+    2. Returns the cached value if found.
+    3. On a miss, calls fetchFn(), stores the result in Redis with the TTL, and returns it.
+    A `redis` client is available in scope (use redis.get / redis.setex).
+  starter_code: |
+    def getCached(key, fetchFn, ttl):
+        # Your code here
+        pass
+  test_cases:
+    - name: "Returns cached value on hit"
+      setup: "redis.set('test_key', 'cached_value')"
+      call: "getCached('test_key', lambda: 'new_value', 60)"
+      expected: "cached_value"
+    - name: "Calls fetchFn on miss"
+      setup: "redis.delete('test_key')"
+      call: "getCached('test_key', lambda: 'fresh_value', 60)"
+      expected: "fresh_value"
+    - name: "Stores fetched value with TTL"
+      setup: "redis.delete('k2')"
+      call: "(getCached('k2', lambda: 'v', 60), redis.get('k2'))[1]"
+      expected: "v"
+  hints:
+    - level: 1
+      cost: 10
+      text: "Check if the key already exists in Redis before calling fetchFn."
+    - level: 2
+      cost: 25
+      text: "Use redis.get() to read and redis.setex(key, ttl, value) to write with a TTL."
+    - level: 3
+      cost: 50
+      text: "Pattern: read cache -> on miss, fetch -> store with TTL -> return."

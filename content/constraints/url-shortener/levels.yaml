@@ -1,0 +1,45 @@
+archetype: url_shortener
+name: "URL Shortener"
+slug: url-shortener
+starting_monolith: "Single Flask server, in-memory dict, 10 req/min"
+origin_code: url-shortener/origin.py
+
+constraints:
+  - level: 1
+    title: "10x more users — 100 req/min"
+    impact: "Response time spikes. Users complain of slow redirects."
+    target_rps: 100
+    latency_sla_ms: 200
+    error_sla_pct: 1.0
+    change_type: caching
+    requires_any: [redis, cache]
+    hints:
+      - "What metric is spiking? (Response time)"
+      - "What component reduces response time? (A cache)"
+      - "Add Redis caching for the URL mappings. See your Toolkit for cache_with_redis."
+
+  - level: 2
+    title: "100x more users — 1,000 req/min"
+    impact: "DB connection pool exhausted. Some requests fail entirely."
+    target_rps: 1000
+    latency_sla_ms: 500
+    error_sla_pct: 2.0
+    change_type: connection_pooling
+    requires_any: [pool, replica]
+    hints:
+      - "Which metric climbs? (error rate from dropped connections)"
+      - "Reuse connections instead of opening one per request."
+      - "Add connection pooling and read replicas."
+
+  - level: 3
+    title: "1000x more users — 10,000 req/min"
+    impact: "Single server at 100% CPU. Throughput flatlines."
+    target_rps: 10000
+    latency_sla_ms: 500
+    error_sla_pct: 3.0
+    change_type: horizontal_scaling
+    requires_any: [lb, "load balancer", horizontal, "scale out"]
+    hints:
+      - "Which metric is pinned? (CPU / throughput)"
+      - "Scale out, not up."
+      - "Add a load balancer and run multiple app servers."

@@ -1,0 +1,191 @@
+# Rate Limiter — Cascade DAG
+# 14 nodes covering 20+ engineering concerns from the master map.
+# Sources: GitHub 2018 Redis outage, Cloudflare 2023 cache stampede, Square 2017 retry storm.
+# Condition language (evaluated by the Cascade Engine fix analyzer):
+#   fix_contains('x')  -> substring/keyword match against the user's fix text
+#   fix_empty()        -> the user submitted no meaningful fix
+#   AND / OR / NOT     -> boolean combinators
+
+archetype: rate_limiter
+name: "Rate Limiter"
+slug: rate-limiter
+version: 1.1
+
+lessons:
+  - caching-redis
+  - token-bucket
+  - distributed-counters
+
+start: origin
+
+nodes:
+  - id: origin
+    type: starting_state
+    description: "In-memory counter on a single Flask server. No persistence. No HA. No atomicity."
+    transitions:
+      - to: no_persistence
+        weight: 1.0
+
+  - id: no_persistence
+    type: issue
+    severity: high
+    category: data_loss
+    description: "Server restart = counters lost. Attackers trigger restarts for unlimited access."
+    solution_signature:
+      required: [external_cache]
+      preferred: redis_with_ttl
+    hints:
+      - {level: 1, cost: 10, text: "What happens to your counters when the server restarts?"}
+      - {level: 2, cost: 25, text: "Consider persisting state to Redis."}
+      - {level: 3, cost: 50, text: "Move your counter to Redis with EXPIRE. See your Toolkit for cache_with_redis."}
+    transitions:
+      - {to: redis_spof, condition: "fix_contains('redis') AND NOT fix_contains('sentinel') AND NOT fix_contains('cluster')", weight: 0.5}
+      - {to: race_condition, condition: "fix_contains('redis') AND fix_contains('multi') AND NOT fix_contains('lua')", weight: 0.3}
+      - {to: single_node_bottleneck, condition: "fix_contains('vertical') OR fix_contains('bigger')", weight: 0.15}
+      - {to: terminal_fail, condition: "fix_empty()", weight: 0.05}
+
+  - id: redis_spof
+    type: issue
+    severity: critical
+    category: availability
+    description: "Redis crashes at 2:47 AM. All limits lost. 50k requests bypass before recovery."
+    solution_signature:
+      required: [high_availability]
+      preferred: redis_sentinel
+    hints:
+      - {level: 1, cost: 10, text: "What happens if the single Redis node crashes?"}
+      - {level: 2, cost: 25, text: "Consider a high-availability Redis setup."}
+      - {level: 3, cost: 50, text: "Add Redis Sentinel (or replicas) with automatic failover and a fallback path."}
+    transitions:
+      - {to: memory_exhaustion, condition: "fix_contains('sentinel') OR fix_contains('replica')", weight: 0.5}
+      - {to: split_brain, condition: "fix_contains('sentinel') AND fix_contains('manual')", weight: 0.15}
+      - {to: performance_degradation, condition: "fix_contains('fallback') OR fix_contains('circuit')", weight: 0.35}
+
+  - id: race_condition
+    type: issue
+    severity: high
+    category: consistency
+    description: "50k concurrent. Two threads read the same counter. Both pass. 25k req/s over the limit."
+    solution_signature:
+      required: [atomic_operation]
+      preferred: lua_script
+    hints:
+      - {level: 1, cost: 10, text: "Two requests read the same value before either writes. What's missing?"}
+      - {level: 2, cost: 25, text: "You need the read-modify-write to be atomic."}
+      - {level: 3, cost: 50, text: "Use INCR or a Lua script so the check-and-increment is atomic."}
+    transitions:
+      - {to: memory_exhaustion, condition: "fix_contains('lua') OR fix_contains('incr') OR fix_contains('atomic')", weight: 0.6}
+      - {to: distributed_inconsistency, condition: "fix_contains('lock') OR fix_contains('mutex')", weight: 0.25}
+      - {to: performance_degradation, condition: "fix_contains('serial')", weight: 0.15}
+
+  - id: memory_exhaustion
+    type: issue
+    severity: medium
+    category: resource_exhaustion
+    description: "2M keys = 6GB. maxmemory is 4GB. Evictions cause legitimate users to bypass limits."
+    solution_signature:
+      required: [memory_management]
+      preferred: maxmemory_policy_ttl
+    hints:
+      - {level: 1, cost: 10, text: "Why does Redis memory keep growing?"}
+      - {level: 2, cost: 25, text: "Bound the keyspace: expire counters you no longer need."}
+      - {level: 3, cost: 50, text: "Add TTL/EXPIRE to every counter key and set a maxmemory eviction policy."}
+    transitions:
+      - {to: distributed_inconsistency, condition: "fix_contains('ttl') OR fix_contains('expire') OR fix_contains('eviction')", weight: 0.6}
+      - {to: cost_explosion, condition: "fix_contains('bigger') OR fix_contains('upgrade')", weight: 0.3}
+      - {to: single_node_bottleneck, condition: "NOT fix_contains('ttl') AND NOT fix_contains('bigger')", weight: 0.1}
+
+  - id: split_brain
+    type: issue
+    severity: high
+    category: consistency
+    description: "Network partition. Two Sentinels elect two primaries. US-East and US-West limits diverge."
+    solution_signature:
+      required: [consensus]
+      preferred: redis_cluster
+    hints:
+      - {level: 1, cost: 10, text: "After a partition, which primary is authoritative?"}
+      - {level: 2, cost: 25, text: "You need quorum/consensus to avoid two primaries."}
+      - {level: 3, cost: 50, text: "Move to Redis Cluster with quorum so only one primary wins a partition."}
+    transitions:
+      - {to: distributed_inconsistency, condition: "fix_contains('cluster') OR fix_contains('quorum')", weight: 0.6}
+      - {to: performance_degradation, condition: "fix_contains('single') OR fix_contains('central')", weight: 0.4}
+
+  - id: distributed_inconsistency
+    type: issue
+    severity: high
+    category: consistency
+    description: "Multi-region. A user shifts US-East -> EU-West. Their counter resets: 190 allowed instead of 100."
+    solution_signature:
+      required: [global_coordination]
+      preferred: crdt_counters
+    hints:
+      - {level: 1, cost: 10, text: "Each region keeps its own count. What does the user experience?"}
+      - {level: 2, cost: 25, text: "You need the per-region counts to converge to one global view."}
+      - {level: 3, cost: 50, text: "Use CRDT counters (or a global merge) so regional counts combine correctly."}
+    transitions:
+      - {to: terminal_stable, condition: "fix_contains('crdt') OR fix_contains('merge') OR fix_contains('global')", weight: 0.7}
+      - {to: performance_degradation, condition: "fix_contains('central')", weight: 0.3}
+
+  - id: cost_explosion
+    type: issue
+    severity: low
+    category: cost
+    description: "12-node cluster. $4,300/mo. The CTO wants the bill cut."
+    solution_signature:
+      required: [cost_optimization]
+      preferred: bloom_filter_prefilter
+    hints:
+      - {level: 1, cost: 10, text: "Are you storing a counter for every key, even ones that never approach the limit?"}
+      - {level: 2, cost: 25, text: "Pre-filter the common case before touching the expensive store."}
+      - {level: 3, cost: 50, text: "Add a Bloom filter / probabilistic pre-filter so most requests skip the cluster."}
+    transitions:
+      - {to: terminal_stable, condition: "fix_contains('bloom') OR fix_contains('probabilistic')", weight: 0.7}
+      - {to: terminal_stable_costly, condition: "fix_contains('downsize')", weight: 0.3}
+
+  - id: performance_degradation
+    type: issue
+    severity: medium
+    category: performance
+    description: "The rate limiter adds 50ms/req. API SLO is 200ms p99 — 25% of the budget gone."
+    solution_signature:
+      required: [performance_optimization]
+      preferred: async_check
+    hints:
+      - {level: 1, cost: 10, text: "Is every request blocking on the limiter synchronously?"}
+      - {level: 2, cost: 25, text: "Batch or pipeline the checks, or move them off the hot path."}
+      - {level: 3, cost: 50, text: "Use async/pipelined checks (or local token batches) to cut per-request latency."}
+    transitions:
+      - {to: terminal_stable, condition: "fix_contains('async') OR fix_contains('batch') OR fix_contains('pipeline')", weight: 0.6}
+      - {to: terminal_stable_costly, condition: "fix_contains('faster') OR fix_contains('upgrade')", weight: 0.4}
+
+  - id: single_node_bottleneck
+    type: issue
+    severity: high
+    category: scalability
+    description: "Single server at 100% CPU. Throughput flatlines at 2k req/s; 503s above that."
+    solution_signature:
+      required: [horizontal_scaling]
+      preferred: consistent_hashing
+    hints:
+      - {level: 1, cost: 10, text: "One box can't absorb more. What dimension do you scale?"}
+      - {level: 2, cost: 25, text: "Add more nodes behind a load balancer and shard the keyspace."}
+      - {level: 3, cost: 50, text: "Scale out with a load balancer; use consistent hashing to shard counters."}
+    transitions:
+      - {to: redis_spof, condition: "fix_contains('lb') OR fix_contains('scale_out') OR fix_contains('horizontal')", weight: 0.6}
+      - {to: distributed_inconsistency, condition: "fix_contains('shard') OR fix_contains('hash')", weight: 0.4}
+
+  - id: terminal_stable
+    type: terminal
+    outcome: survived
+    description: "SYSTEM STABLE. Cost: $1.2-2.5k/mo. P99 added: <5ms. You survived the cascade."
+
+  - id: terminal_stable_costly
+    type: terminal
+    outcome: survived
+    description: "SYSTEM STABLE (expensive). Cost: $4.5-8k/mo. P99 added: <10ms. It works, but it costs."
+
+  - id: terminal_fail
+    type: terminal
+    outcome: failed
+    description: "SYSTEM FAILED. Doing nothing is the only wrong answer."

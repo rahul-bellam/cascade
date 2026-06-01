@@ -1,0 +1,72 @@
+slug: token-bucket
+title: "Token Bucket Rate Limiter"
+prerequisites: [caching-redis]
+estimated_minutes: 15
+order_index: 2
+toolkit_key: token_bucket
+
+concept:
+  - type: text
+    body: >
+      A rate limiter decides whether a client is allowed to make a request right
+      now. The token bucket algorithm models a bucket that holds up to `capacity`
+      tokens and refills at a steady `refill_rate` tokens per second. Each request
+      costs one token. If a token is available, the request is allowed and a token
+      is removed; otherwise it is rejected.
+  - type: text
+    body: >
+      Token bucket is popular because it allows short bursts (up to the bucket
+      capacity) while still enforcing a long-run average rate. This is the exact
+      mechanic you'll later have to make persistent, atomic, and distributed in
+      the Cascade rate-limiter chain.
+  - type: code_block
+    language: python
+    code: |
+      # Conceptually: refill based on elapsed time, then try to spend a token.
+      tokens = min(capacity, tokens + elapsed * refill_rate)
+      if tokens >= 1:
+          tokens -= 1
+          allow = True
+      else:
+          allow = False
+
+snippet:
+  prompt: |
+    Implement a TokenBucket class with:
+      __init__(self, capacity, refill_rate)  # tokens, tokens-per-second
+      allow(self)  -> bool                   # consume one token if available
+    The bucket starts full. For deterministic tests, refill is driven by an
+    injectable clock: a module-level `now()` returns the current time in seconds.
+    Use now() (already provided in scope) instead of time.time() directly.
+  starter_code: |
+    class TokenBucket:
+        def __init__(self, capacity, refill_rate):
+            # Your code here
+            pass
+
+        def allow(self):
+            # Your code here
+            pass
+  test_cases:
+    - name: "Allows up to capacity immediately (burst)"
+      setup: "set_time(0); b = TokenBucket(3, 1)"
+      call: "[b.allow(), b.allow(), b.allow(), b.allow()]"
+      expected: "[True, True, True, False]"
+    - name: "Refills over time"
+      setup: "set_time(0); b = TokenBucket(1, 1); b.allow(); set_time(1)"
+      call: "b.allow()"
+      expected: "True"
+    - name: "Does not exceed capacity when idle"
+      setup: "set_time(0); b = TokenBucket(2, 1); set_time(100)"
+      call: "[b.allow(), b.allow(), b.allow()]"
+      expected: "[True, True, False]"
+  hints:
+    - level: 1
+      cost: 10
+      text: "Track the current token count and the timestamp of the last refill."
+    - level: 2
+      cost: 25
+      text: "On each allow(), add (now() - last) * refill_rate tokens, capped at capacity."
+    - level: 3
+      cost: 50
+      text: "If tokens >= 1, subtract 1 and return True; else return False. Update last = now()."

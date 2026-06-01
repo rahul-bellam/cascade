@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_DB: cascade
+      POSTGRES_PASSWORD: cascade_dev
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    ports: ["9000:9000", "9001:9001"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: cascade
+      MINIO_ROOT_PASSWORD: cascade_dev
+    volumes: [minio_data:/data]
+
+  learn-engine:
+    build:
+      context: .
+      dockerfile: services/learn-engine/Dockerfile
+    ports: ["8093:8093"]
+    environment:
+      DATABASE_URL: postgres://postgres:cascade_dev@postgres:5432/cascade?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  cascade-engine:
+    build:
+      context: .
+      dockerfile: services/cascade-engine/Dockerfile
+    ports: ["8090:8090"]
+
+  constraint-engine:
+    build:
+      context: .
+      dockerfile: services/constraint-engine/Dockerfile
+    ports: ["8094:8094"]
+    environment:
+      LEARN_ENGINE_URL: http://learn-engine:8093
+    depends_on: [learn-engine]
+
+volumes:
+  pgdata:
+  minio_data:
