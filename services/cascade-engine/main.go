@@ -422,12 +422,12 @@ func submitFixHandler(w http.ResponseWriter, r *http.Request, sid string) {
 	writeJSON(w, 200, result)
 }
 
-// ── Insight gate (Phase 3.6) ────────────────────────────────────────────────
+// ── Insight gate (Phase 3.6) — proxies through insight-engine ───────────────
 
 type insightReq struct {
-	Diagnosis   string `json:"diagnosis"`
-	Tradeoffs   string `json:"tradeoffs"`
-	Foresight   string `json:"foresight"`
+	Diagnosis   string   `json:"diagnosis"`
+	Tradeoffs   string   `json:"tradeoffs"`
+	Foresight   string   `json:"foresight"`
 }
 
 type insightScore struct {
@@ -463,7 +463,42 @@ func insightGateHandler(w http.ResponseWriter, r *http.Request, sid string) {
 		return
 	}
 
-	// Simple keyword-based scoring (deterministic fallback)
+	// Proxy through insight-engine for TF-IDF scoring
+	sc := callInsightScorer(req, er)
+
+	insightMu.Lock()
+	insightSessions[sid] = &sc
+	insightMu.Unlock()
+
+	writeJSON(w, 200, sc)
+}
+
+func callInsightScorer(req insightReq, er *ExpectedReasoning) insightScore {
+	proxyBody, _ := json.Marshal(map[string]any{
+		"diagnosis":          req.Diagnosis,
+		"tradeoffs":          req.Tradeoffs,
+		"foresight":          req.Foresight,
+		"expected_diagnosis":  er.Diagnosis,
+		"expected_tradeoffs":  er.Tradeoffs,
+		"expected_foresight":  er.Foresight,
+	})
+
+	resp, err := http.Post(
+		fmt.Sprintf("%s/insight/score", insightEngineURL),
+		"application/json",
+		strings.NewReader(string(proxyBody)),
+	)
+	if err == nil && resp.StatusCode == 200 {
+		var sc insightScore
+		json.NewDecoder(resp.Body).Decode(&sc)
+		resp.Body.Close()
+		return sc
+	}
+	if resp != nil {
+		resp.Body.Close()
+	}
+
+	// Fallback: keyword scoring
 	normD := strings.ToLower(req.Diagnosis)
 	normT := strings.ToLower(req.Tradeoffs)
 	normF := strings.ToLower(req.Foresight)
@@ -486,7 +521,7 @@ func insightGateHandler(w http.ResponseWriter, r *http.Request, sid string) {
 		}
 	}
 
-	sc := insightScore{
+	return insightScore{
 		DiagnosisScore: diagScore,
 		TradeoffScore:  tradeScore,
 		ForesightScore: foresightScore,
@@ -494,12 +529,6 @@ func insightGateHandler(w http.ResponseWriter, r *http.Request, sid string) {
 		Unlocked:       unlocked,
 		ProcessHint:    hint,
 	}
-
-	insightMu.Lock()
-	insightSessions[sid] = &sc
-	insightMu.Unlock()
-
-	writeJSON(w, 200, sc)
 }
 
 func scoreKeywords(text string, expected []string) float64 {

@@ -1,10 +1,19 @@
 import os
 import time
+import re
 from collections import defaultdict
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+    import numpy as np
+    HAS_SKLEARN = True
+except ImportError:
+    HAS_SKLEARN = False
 
 CASCADE_ENGINE_URL = os.getenv("CASCADE_ENGINE_URL", "http://localhost:8090")
 
@@ -14,21 +23,88 @@ telemetry_cache: list[dict] = []
 last_fetch = 0.0
 CACHE_TTL = 30.0
 
-class TelemetryEntry(BaseModel):
-    user_id: str
-    mode: str = "cascade"
-    archetype: str
-    node: str
-    concern_ids: list[int] = []
-    fix_text: str = ""
-    capabilities_detected: list[str] = []
-    outcome: str = ""
-    led_to: str = ""
-    hints_used: int = 0
-    time_to_fix_ms: int = 0
-    reached_for_first: str = ""
-    missed: list[str] = []
-    ts: str = ""
+class InsightRequest(BaseModel):
+    diagnosis: str
+    tradeoffs: str
+    foresight: str
+    expected_diagnosis: list[str] = []
+    expected_tradeoffs: list[str] = []
+    expected_foresight: list[str] = []
+
+class InsightResponse(BaseModel):
+    diagnosis_score: float
+    tradeoff_score: float
+    foresight_score: float
+    total: float
+    unlocked: bool
+    process_hint: str = ""
+
+# ── Tokenizer ────────────────────────────────────────────────────────────────
+
+_TOKENIZE_RE = re.compile(r"[a-z]+(?:'[a-z]+)?")
+
+def tokenize(text: str) -> str:
+    tokens = _TOKENIZE_RE.findall(text.lower())
+    return " ".join(tokens)
+
+# ── TF-IDF scorer ────────────────────────────────────────────────────────────
+
+def _score_tfidf(text: str, expected: list[str]) -> float:
+    if not expected:
+        return 1.0
+    clean = tokenize(text)
+    if not clean.strip():
+        return 0.0
+    candidates = [clean] + [tokenize(e) for e in expected]
+    vec = TfidfVectorizer(ngram_range=(1, 2), max_features=500)
+    try:
+        mat = vec.fit_transform(candidates)
+        sims = cosine_similarity(mat[0:1], mat[1:]).flatten()
+        return float(np.mean(sims))
+    except ValueError:
+        return 0.0
+
+# ── Keyword fallback scorer ───────────────────────────────────────────────────
+
+def _score_keyword(text: str, expected: list[str]) -> float:
+    if not expected:
+        return 1.0
+    norm = text.lower()
+    hits = sum(1 for kw in expected if kw.lower() in norm)
+    return hits / len(expected)
+
+def score_insight(req: InsightRequest) -> InsightResponse:
+    if HAS_SKLEARN:
+        ds = _score_tfidf(req.diagnosis, req.expected_diagnosis)
+        ts = _score_tfidf(req.tradeoffs, req.expected_tradeoffs)
+        fs = _score_tfidf(req.foresight, req.expected_foresight)
+    else:
+        ds = _score_keyword(req.diagnosis, req.expected_diagnosis)
+        ts = _score_keyword(req.tradeoffs, req.expected_tradeoffs)
+        fs = _score_keyword(req.foresight, req.expected_foresight)
+
+    total = (ds + ts + fs) / 3.0
+    unlocked = total >= 0.3
+
+    hint = ""
+    if not unlocked:
+        if ds < 0.3:
+            hint = "Start by identifying the specific component that's failing — what resource is exhausted or unavailable?"
+        elif ts < 0.3:
+            hint = "Your fix has a cost. What trade-off are you making? (Latency? Consistency? Cost?)"
+        else:
+            hint = "Good diagnosis. Now think one step ahead — what new failure could your fix introduce?"
+
+    return InsightResponse(
+        diagnosis_score=round(ds, 3),
+        tradeoff_score=round(ts, 3),
+        foresight_score=round(fs, 3),
+        total=round(total, 3),
+        unlocked=unlocked,
+        process_hint=hint,
+    )
+
+# ── Telemetry helpers ────────────────────────────────────────────────────────
 
 def fetch_telemetry() -> list[dict]:
     global telemetry_cache, last_fetch
@@ -109,9 +185,15 @@ def detect_chains(entries: list[dict]) -> list[list[str]]:
                     chains.append([src, dst, dst2])
     return chains[:5]
 
+# ── Routes ───────────────────────────────────────────────────────────────────
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.post("/insight/score")
+def score_insight_endpoint(req: InsightRequest) -> InsightResponse:
+    return score_insight(req)
 
 @app.get("/profile/{user_id}/mastery")
 def get_mastery(user_id: str):
