@@ -39,8 +39,31 @@ export const cascadeApi = {
   hint: (sid: string, level: number) =>
     fetch(`${CASCADE}/cascade/${sid}/hint?level=${level}`).then(j<any>),
   summary: (sid: string) => fetch(`${CASCADE}/cascade/${sid}/summary`).then(j<any>),
+  dag: (sid: string) => fetch(`${CASCADE}/cascade/${sid}/dag`).then(j<any>),
 };
 
+const LEAGUE = '/api/league';
+const REFACTOR = '/api/refactor';
+export const leagueApi = {
+  createSeason: (name: string, weeks: number) =>
+    fetch(`${LEAGUE}/seasons`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, weeks }),
+    }).then(j<any>),
+  currentSeason: () => fetch(`${LEAGUE}/seasons/current`).then(j<any>),
+  standings: (seasonId: string, division: string) =>
+    fetch(`${LEAGUE}/standings?season_id=${encodeURIComponent(seasonId)}&division=${encodeURIComponent(division)}`).then(j<any>),
+};
+export const refactorApi = {
+  start: (codebase: string, userId: string) =>
+    fetch(`${REFACTOR}/refactor/start`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codebase, user_id: userId }),
+    }).then(j<any>),
+  deps: (sid: string) => fetch(`${REFACTOR}/refactor/${sid}/deps`).then(j<any>),
+  file: (sid: string, path: string) =>
+    fetch(`${REFACTOR}/refactor/${sid}/file?path=${encodeURIComponent(path)}`).then(j<any>),
+};
 const CONSTRAINT = '/api/constraint';
 export const constraintApi = {
   archetypes: () => fetch(`${CONSTRAINT}/archetypes`).then(j<any>),
