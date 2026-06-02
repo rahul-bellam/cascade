@@ -1,7 +1,8 @@
 import React from 'react';
-import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { Layout } from '../../components/layout/Layout';
+import { Skeleton } from '../../components/ui/Skeleton';
 import { LessonPlayer } from '../../components/learn/LessonPlayer';
 import { learnApi } from '../../lib/api';
 
@@ -17,14 +18,17 @@ export default function LessonPage() {
   }, [slug]);
 
   return (
-    <div className="min-h-screen bg-black text-[#00ff41]">
-      <Head><title>{lesson?.title || 'Lesson'} — Cascade</title></Head>
-      <div className="h-14 flex items-center px-6 border-b border-[#1a1a1a]">
-        <Link href="/learn" className="text-[#c0c0c0] hover:text-[#00ff41] text-sm font-mono">← $ lessons</Link>
-        <span className="ml-4 text-sm font-mono text-[#00ff41]">{lesson?.title}</span>
+    <Layout title={lesson?.title || 'Lesson'} full>
+      <div className="border-b border-border">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-5 py-4 sm:px-8">
+          <Link href="/learn" className="text-sm text-muted transition hover:text-fg">← Lessons</Link>
+          {lesson?.title && <span className="font-serif text-sm font-500">{lesson.title}</span>}
+        </div>
       </div>
-      {err && <div className="m-6 border border-[#ff3333] bg-[#ff3333]/10 text-[#ff3333] p-3 text-sm font-mono">&gt; error: {err}</div>}
-      {lesson ? <LessonPlayer lesson={lesson} /> : !err && <div className="p-8 text-[#c0c0c0] font-mono">$ loading...</div>}
-    </div>
+      <div className="mx-auto max-w-6xl px-5 py-6 sm:px-8">
+        {err && <div role="alert" className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">Error: {err}</div>}
+        {lesson ? <LessonPlayer lesson={lesson} /> : !err && <div className="max-w-md"><Skeleton className="h-40 w-full" /></div>}
+      </div>
+    </Layout>
   );
 }

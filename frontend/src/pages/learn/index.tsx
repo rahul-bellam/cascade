@@ -1,44 +1,50 @@
 import React from 'react';
-import Head from 'next/head';
 import Link from 'next/link';
+import { Layout } from '../../components/layout/Layout';
+import { PageHeader } from '../../components/ui/Card';
+import { Skeleton } from '../../components/ui/Skeleton';
 import { learnApi } from '../../lib/api';
 
 export default function LearnPage() {
-  const [lessons, setLessons] = React.useState<any[]>([]);
+  const [lessons, setLessons] = React.useState<any[] | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     learnApi.list()
-      .then((data) => setLessons(Array.isArray(data) ? data : data.lessons || []))
+      .then((d: any) => setLessons(Array.isArray(d) ? d : d.lessons || []))
       .catch((e) => setErr(String(e.message || e)));
   }, []);
 
   return (
-    <div>
-      <Head><title>learn — Cascade</title></Head>
-      <h1 className="text-lg font-bold mb-1 font-mono">$ cat /lessons</h1>
-      <p className="text-[#c0c0c0] text-xs mb-6 font-mono">found {lessons.length} lessons</p>
-      {err && <div className="border border-[#ff3333] text-[#ff3333] p-3 mb-6 text-sm font-mono">&gt; error: {err}</div>}
-      {lessons.length === 0 && !err && (
-        <div className="text-[#c0c0c0] text-sm font-mono">$ no lessons yet</div>
+    <Layout title="Learn" description="Concept-and-code lessons. Build your toolkit.">
+      <PageHeader eyebrow="Mode · Learn" title="Lessons"
+        subtitle="Each lesson pairs a concept with a small implementation. Pass it, and the snippet joins your toolkit." />
+
+      {err && (
+        <div role="alert" className="mb-6 rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
+          Couldn’t reach the learn engine: {err}. Start it on :8093.
+        </div>
       )}
-      <ul className="space-y-3">
-        {lessons.map((l, i) => (
-          <li key={l.slug || i}>
-            <Link href={`/learn/${l.slug}`}
-              className="block border border-[#1a1a1a] p-4 hover:border-[#c0c0c0] transition-colors">
-              <div className="flex items-center gap-3">
-                <span className="text-[#c0c0c0] text-xs font-mono">[{i + 1}]</span>
-                <span className="text-[#00ff41] font-bold text-sm font-mono">{l.title}</span>
-                {l.estimated_minutes && (
-                  <span className="text-[#c0c0c0] text-xs font-mono ml-auto">~{l.estimated_minutes}min</span>
-                )}
-              </div>
-              {l.subtitle && <div className="text-[#c0c0c0] text-xs mt-1 font-mono">{l.subtitle}</div>}
-            </Link>
-          </li>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {lessons === null && !err && [0, 1].map((i) => <Skeleton key={i} className="h-24 w-full" />)}
+        {lessons?.map((l: any, i: number) => (
+          <Link key={l.slug || i} href={`/learn/${l.slug}`}
+            className="group rounded-2xl border border-border bg-surface p-6 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift">
+            <div className="mb-2 flex items-baseline justify-between">
+              <span className="font-serif text-sm text-accent-600">{String(i + 1).padStart(2, '0')}</span>
+              <span className="text-xs text-muted">~{l.estimated_minutes ?? 10} min</span>
+            </div>
+            <h3 className="font-serif text-lg font-600">{l.title}</h3>
+            {l.prerequisite_slugs?.length > 0 && (
+              <p className="mt-1 text-xs text-muted">Prerequisite: {l.prerequisite_slugs.join(', ')}</p>
+            )}
+          </Link>
         ))}
-      </ul>
-    </div>
+        {lessons?.length === 0 && !err && (
+          <div className="col-span-full rounded-2xl border border-dashed border-border p-10 text-center text-muted">No lessons yet.</div>
+        )}
+      </div>
+    </Layout>
   );
 }

@@ -4,12 +4,12 @@ import { refactorApi } from '../../lib/api';
 
 const ForceGraph2D = dynamic(() => import('react-force-graph').then((m) => m.ForceGraph2D), {
   ssr: false,
-  loading: () => <div className="flex items-center justify-center h-full text-[#c0c0c0] font-mono text-sm">loading graph...</div>,
+  loading: () => <div className="flex items-center justify-center h-full text-muted  text-sm">loading graph...</div>,
 });
 
 const Monaco = dynamic(() => import('@monaco-editor/react').then((m) => m.default), {
   ssr: false,
-  loading: () => <div className="p-3 text-[#c0c0c0] text-sm font-mono">loading editor...</div>,
+  loading: () => <div className="p-3 text-muted text-sm ">loading editor...</div>,
 });
 
 export function CodebaseExplorer({ codebase = "payment-monolith" }: { codebase?: string }) {
@@ -79,43 +79,43 @@ export function CodebaseExplorer({ codebase = "payment-monolith" }: { codebase?:
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-black text-[#c0c0c0] font-mono">
-        <div className="animate-pulse">$ analyzing codebase...</div>
+      <div className="flex items-center justify-center h-screen bg-bg text-muted ">
+        <div className="animate-pulse">Analyzing codebase…</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen bg-black text-[#ff3333] font-mono">
+      <div className="flex items-center justify-center h-screen bg-bg text-danger ">
         &gt; failed: {error}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col bg-black text-[#00ff41] font-mono" style={{ height: 'calc(100vh - 8rem)' }}>
-      <header className="flex-none px-6 py-3 border-b border-[#1a1a1a] flex justify-between items-center">
+    <div className="flex flex-col bg-bg text-accent-700 " style={{ height: 'calc(100vh - 8rem)' }}>
+      <header className="flex-none px-6 py-3 border-b border-border flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <h1 className="text-sm font-bold">$ refactor_explorer</h1>
-          <span className="text-xs border border-[#1a1a1a] px-2 py-0.5 text-[#c0c0c0]">{codebase}</span>
+          <h1 className="text-sm font-bold">Refactor Explorer</h1>
+          <span className="text-xs border border-border px-2 py-0.5 text-muted">{codebase}</span>
         </div>
-        <div className="flex items-center gap-4 text-xs text-[#c0c0c0]">
+        <div className="flex items-center gap-4 text-xs text-muted">
           <div className="flex items-center gap-1">
-            <span className="w-2 h-2 bg-[#ff3333] inline-block"></span> high coupling
+            <span className="w-2 h-2 bg-danger inline-block"></span> high coupling
           </div>
           <div className="flex items-center gap-1">
-            <span className="w-2 h-2 bg-[#00ff41] inline-block"></span> standard
+            <span className="w-2 h-2 bg-accent-600 inline-block"></span> standard
           </div>
           <div className="flex items-center gap-1">
-            <span className="w-2 h-2 bg-[#ff3333] inline-block"></span> selected
+            <span className="w-2 h-2 bg-danger inline-block"></span> selected
           </div>
         </div>
       </header>
 
       <main className="flex-1 flex overflow-hidden">
-        <div className="w-64 flex-none border-r border-[#1a1a1a] flex flex-col overflow-y-auto">
-          <div className="p-3 text-xs text-[#c0c0c0] border-b border-[#1a1a1a]">$ files</div>
+        <div className="w-64 flex-none border-r border-border flex flex-col overflow-y-auto">
+          <div className="p-3 text-xs text-muted border-b border-border">Files</div>
           <div className="py-1">
             {depGraph?.files && Object.keys(depGraph.files).sort().map(path => {
               const info = depGraph.files[path];
@@ -128,26 +128,26 @@ export function CodebaseExplorer({ codebase = "payment-monolith" }: { codebase?:
                   onClick={() => sid && handleFileSelect(sid, path)}
                   className={`px-3 py-1.5 cursor-pointer text-xs border-l-2 flex justify-between items-center transition-colors
                     ${isSelected
-                      ? 'border-[#ff3333] bg-[#ff3333]/10 text-[#00ff41]'
-                      : 'border-transparent text-[#c0c0c0] hover:text-[#00ff41] hover:border-[#c0c0c0]'
+                      ? 'border-danger bg-danger/10 text-accent-700'
+                      : 'border-transparent text-muted hover:text-accent-700 hover:border-border'
                     }`}
                 >
                   <span className="truncate">{path}</span>
-                  {hasHighCoupling && <span className="w-1.5 h-1.5 bg-[#ff3333] inline-block flex-shrink-0" />}
+                  {hasHighCoupling && <span className="w-1.5 h-1.5 bg-danger inline-block flex-shrink-0" />}
                 </div>
               );
             })}
           </div>
         </div>
 
-        <div className="flex-1 border-r border-[#1a1a1a] bg-black relative" ref={containerRef}>
-          <div className="absolute top-3 left-3 z-10 border border-[#1a1a1a] bg-black/90 p-3 text-xs text-[#c0c0c0] pointer-events-none font-mono">
-            <div className="font-bold text-[#00ff41] mb-1">$ metrics</div>
+        <div className="flex-1 border-r border-border bg-bg relative" ref={containerRef}>
+          <div className="absolute top-3 left-3 z-10 border border-border bg-bg/90 p-3 text-xs text-muted pointer-events-none ">
+            <div className="font-bold text-accent-700 mb-1">Metrics</div>
             <div>files: {depGraph?.metrics?.total_files}</div>
             <div>functions: {depGraph?.metrics?.total_functions}</div>
             <div>global_state_refs: {depGraph?.metrics?.total_global_state}</div>
             {depGraph?.metrics?.god_functions?.length > 0 && (
-              <div className="mt-1 text-[#ff3333]">
+              <div className="mt-1 text-danger">
                 &gt; god_functions: {depGraph.metrics.god_functions.join(', ')}
               </div>
             )}
@@ -161,9 +161,9 @@ export function CodebaseExplorer({ codebase = "payment-monolith" }: { codebase?:
               graphData={depGraph}
               nodeId="id"
               nodeLabel="name"
-              nodeColor={n => n.id === selectedFile ? '#ff3333' : (n.high_coupling ? '#00ff41' : '#c0c0c0')}
+              nodeColor={n => n.id === selectedFile ? '#a8443a' : (n.high_coupling ? '#3d7d6c' : '#78716c')}
               nodeRelSize={4}
-              linkColor={() => '#1a1a1a'}
+              linkColor={() => '#e6e0d6'}
               linkDirectionalArrowLength={3.5}
               linkDirectionalArrowRelPos={1}
               onNodeClick={handleNodeClick}
@@ -173,11 +173,11 @@ export function CodebaseExplorer({ codebase = "payment-monolith" }: { codebase?:
         </div>
 
         <div className="flex-1 flex flex-col min-w-[500px]">
-          <div className="flex-none px-4 py-2 border-b border-[#1a1a1a] text-xs text-[#c0c0c0] flex justify-between items-center">
-            <span className="font-bold truncate text-[#00ff41]">$ {selectedFile || 'no_file'}</span>
-            <span className="px-2 py-0.5 border border-[#1a1a1a] text-[#c0c0c0]">python</span>
+          <div className="flex-none px-4 py-2 border-b border-border text-xs text-muted flex justify-between items-center">
+            <span className="font-bold truncate text-accent-700">$ {selectedFile || 'no_file'}</span>
+            <span className="px-2 py-0.5 border border-border text-muted">python</span>
           </div>
-          <div className="flex-1 border-t border-[#1a1a1a]">
+          <div className="flex-1 border-t border-border">
             <Monaco
               language="python"
               theme="hc-black"

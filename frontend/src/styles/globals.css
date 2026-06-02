@@ -1,37 +1,66 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+/* Cascade — Premium Student Portal.
+   Fraunces (elegant serif display) + Jost (calm geometric sans).
+   Warm, light, editorial. Falls back gracefully if fonts can't load. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Jost:wght@300;400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Semantic tokens — warm cream surfaces, warm-ink text. */
 :root {
-  --bg: 0 0 0;
-  --surface: 10 10 10;
-  --surface-2: 20 20 20;
-  --border: 26 26 26;
-  --fg: 0 255 65;
-  --muted: 0 204 51;
+  --bg: 250 247 242;       /* #FAF7F2 warm paper */
+  --surface: 255 253 250;  /* #FFFDFA near-white card */
+  --surface-2: 244 240 233; /* #F4F0E9 subtle inset */
+  --border: 230 224 214;   /* #E6E0D6 soft warm border */
+  --fg: 28 25 23;          /* #1C1917 warm ink */
+  --muted: 120 113 108;    /* #78716C stone-500 */
 }
 
-::selection { background: rgba(0, 255, 65, 0.25); color: #00ff41; }
+/* Dark mode — warm charcoal (premium, NOT terminal black). Same elegance, low glare. */
+.dark {
+  --bg: 23 21 19;          /* #171513 warm charcoal */
+  --surface: 31 28 26;     /* #1F1C1A raised card */
+  --surface-2: 41 37 34;   /* #292522 inset */
+  --border: 56 51 47;      /* #38332F warm border */
+  --fg: 240 236 230;       /* #F0ECE6 warm off-white */
+  --muted: 168 160 152;    /* #A8A098 warm grey */
+}
+
+/* Smooth, subtle theme transition (respecting reduced-motion below). */
+html { color-scheme: light dark; }
+html.dark { color-scheme: dark; }
+body, .theme-tx { transition: background-color .25s ease, color .25s ease, border-color .25s ease; }
+
+
+::selection { background: rgba(61, 125, 108, 0.18); }
 
 html, body {
   margin: 0;
   background: rgb(var(--bg));
   color: rgb(var(--fg));
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-family: 'Jost', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
-  font-size: 14px;
-  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+  font-size: 16px;
+  line-height: 1.65;
 }
 
 * { box-sizing: border-box; }
 
-:where(a, button, input, textarea, select, [tabindex]):focus-visible {
-  outline: 1px solid #00ff41;
-  outline-offset: 2px;
+h1, h2, h3, .font-serif {
+  font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
+  letter-spacing: -0.01em;
 }
 
+/* Accessibility: calm, visible focus ring in the accent ink. */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid #3d7d6c;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Respect reduced motion. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -40,36 +69,7 @@ html, body {
   }
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-thumb { background: #1a1a1a; }
+/* Quiet, premium scrollbar. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-
-@layer components {
-  .terminal-card {
-    @apply border border-[#1a1a1a] bg-[#0a0a0a] p-4;
-  }
-  .terminal-btn {
-    @apply border border-[#c0c0c0] text-[#c0c0c0] px-4 py-2 text-sm
-           hover:bg-[#c0c0c0] hover:text-black transition-colors duration-150
-           disabled:opacity-40 disabled:cursor-not-allowed;
-  }
-  .terminal-btn-green {
-    @apply border border-[#00ff41] text-[#00ff41] px-4 py-2 text-sm
-           hover:bg-[#00ff41] hover:text-black transition-colors duration-150
-           disabled:opacity-40 disabled:cursor-not-allowed;
-  }
-  .terminal-btn-red {
-    @apply border border-[#ff3333] text-[#ff3333] px-4 py-2 text-sm
-           hover:bg-[#ff3333] hover:text-black transition-colors duration-150;
-  }
-  .terminal-input {
-    @apply bg-black border border-[#1a1a1a] text-[#00ff41] px-3 py-2 text-sm
-           focus:border-[#00ff41] focus:outline-none;
-  }
-  .terminal-link {
-    @apply text-[#00ff41] hover:text-[#00cc33] underline underline-offset-4 decoration-[#1a1a1a] hover:decoration-[#00ff41];
-  }
-  .terminal-badge {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 text-xs border;
-  }
-}

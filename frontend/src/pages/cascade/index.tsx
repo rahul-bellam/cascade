@@ -1,17 +1,13 @@
 import React from 'react';
-import Head from 'next/head';
+import { Layout } from '../../components/layout/Layout';
 import { CascadePlayer } from '../../components/cascade/CascadePlayer';
 
 export default function CascadePage() {
   return (
-    <>
-      <Head><title>cascade — survive the chain</title></Head>
-      <div className="w-full">
-        <div className="mb-4 text-xs text-[#c0c0c0] font-mono">
-          {`> loading failure DAG: rate-limiter`}
-        </div>
+    <Layout title="Cascade" description="Fix one issue; your fix reveals the next. Survive the chain." full>
+      <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
         <CascadePlayer archetype="rate-limiter" />
       </div>
-    </>
+    </Layout>
   );
 }

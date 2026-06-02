@@ -2,16 +2,16 @@ import React from 'react';
 import { IconAlert, IconBolt, IconShield } from './icons';
 
 const MAP: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
-  critical: { color: 'border-[#ff3333] text-[#ff3333] bg-[#ff3333]/10', icon: <IconBolt width={13} height={13} />, label: 'critical' },
-  high: { color: 'border-[#ff3333] text-[#ff3333] bg-[#ff3333]/5', icon: <IconAlert width={13} height={13} />, label: 'high' },
-  medium: { color: 'border-[#c0c0c0] text-[#c0c0c0] bg-black', icon: <IconAlert width={13} height={13} />, label: 'medium' },
-  low: { color: 'border-[#1a1a1a] text-[#c0c0c0] bg-black', icon: <IconShield width={13} height={13} />, label: 'low' },
+  critical: { color: 'border-danger text-danger bg-danger/10', icon: <IconBolt width={13} height={13} />, label: 'critical' },
+  high: { color: 'border-danger text-danger bg-danger/5', icon: <IconAlert width={13} height={13} />, label: 'high' },
+  medium: { color: 'border-border text-muted bg-bg', icon: <IconAlert width={13} height={13} />, label: 'medium' },
+  low: { color: 'border-border text-muted bg-bg', icon: <IconShield width={13} height={13} />, label: 'low' },
 };
 
 export function SeverityBadge({ severity }: { severity?: string }) {
   const m = MAP[severity || 'low'] || MAP.low;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono border ${m.color}`}
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs  border ${m.color}`}
       role="status" aria-label={`severity: ${m.label}`}>
       {m.icon}{m.label}
     </span>

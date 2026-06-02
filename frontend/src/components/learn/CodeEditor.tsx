@@ -1,20 +1,22 @@
 import React from 'react';
 import dynamic from 'next/dynamic';
+import { useTheme } from '../../lib/theme';
 
 const Monaco = dynamic(() => import('@monaco-editor/react').then((m) => m.default), {
   ssr: false,
-  loading: () => <div className="p-3 text-[#c0c0c0] text-sm font-mono">loading editor...</div>,
+  loading: () => <div className="p-3 text-muted text-sm">Loading editor…</div>,
 });
 
 export function CodeEditor({
   value, onChange, language = 'python',
 }: { value: string; onChange: (v: string) => void; language?: string }) {
+  const { theme } = useTheme();
   const [useFallback, setUseFallback] = React.useState(false);
 
   if (useFallback) {
     return (
       <textarea
-        className="w-full h-full font-mono text-sm p-3 bg-black text-[#00ff41] outline-none resize-none border-0"
+        className="h-full w-full resize-none border-0 bg-surface p-3 font-mono text-sm text-fg outline-none"
         value={value}
         spellCheck={false}
         onChange={(e) => onChange(e.target.value)}
@@ -23,10 +25,10 @@ export function CodeEditor({
   }
 
   return (
-    <div className="h-full relative">
+    <div className="relative h-full">
       <button
         onClick={() => setUseFallback(true)}
-        className="absolute z-10 right-2 top-2 text-[10px] px-2 py-0.5 border border-[#c0c0c0] text-[#c0c0c0] hover:bg-[#c0c0c0] hover:text-black bg-black"
+        className="absolute right-2 top-2 z-10 rounded border border-border bg-surface px-2 py-0.5 text-[10px] text-muted transition hover:text-fg"
         title="Switch to plain editor"
       >
         plain
@@ -34,10 +36,10 @@ export function CodeEditor({
       <Monaco
         height="100%"
         language={language}
-        theme="hc-black"
+        theme={theme === 'dark' ? 'vs-dark' : 'light'}
         value={value}
         onChange={(v) => onChange(v || '')}
-        options={{ minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false, fontFamily: 'JetBrains Mono' }}
+        options={{ minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false, fontFamily: "'Fira Code', ui-monospace, monospace" }}
       />
     </div>
   );

@@ -1,13 +1,13 @@
 import React from 'react';
-import Head from 'next/head';
-import Link from 'next/link';
+import { Layout } from '../../components/layout/Layout';
 import { ConstraintSession } from '../../components/constraint/ConstraintSession';
 
 export default function ConstraintPage() {
   return (
-    <div className="min-h-screen bg-black text-[#00ff41]">
-      <Head><title>constraint — Cascade</title></Head>
-      <ConstraintSession archetype="rate-limiter" />
-    </div>
+    <Layout title="Scale" description="Survive escalating constraints on a working system." full>
+      <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
+        <ConstraintSession archetype="rate-limiter" />
+      </div>
+    </Layout>
   );
 }

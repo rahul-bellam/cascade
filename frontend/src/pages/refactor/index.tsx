@@ -1,18 +1,16 @@
-import Head from 'next/head';
+import React from 'react';
 import dynamic from 'next/dynamic';
+import { Layout } from '../../components/layout/Layout';
 
 const CodebaseExplorer = dynamic(
-  () => import('../../components/refactor/CodebaseExplorer').then(mod => mod.CodebaseExplorer),
-  { ssr: false }
+  () => import('../../components/refactor/CodebaseExplorer').then((m) => m.CodebaseExplorer),
+  { ssr: false },
 );
 
 export default function RefactorPage() {
   return (
-    <>
-      <Head>
-        <title>refactor — Cascade</title>
-      </Head>
+    <Layout title="Refactor" description="Reverse-engineer a legacy codebase. Extract services." full>
       <CodebaseExplorer codebase="payment-monolith" />
-    </>
+    </Layout>
   );
 }

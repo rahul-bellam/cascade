@@ -1,8 +1,11 @@
+import { useTheme } from '../../lib/theme';
 import React, { useState, useEffect } from 'react';
 import useWebSocket from 'react-use-websocket';
 import MonacoEditor from '@monaco-editor/react';
 
 export function ArenaDuel({ userId }: { userId: string }) {
+  const { theme } = useTheme();
+  const dark = theme === 'dark';
   const [phase, setPhase] = useState('matchmaking');
   const [timeLeft, setTimeLeft] = useState(0);
   const [code, setCode] = useState('# Type your design code here\n');
@@ -111,7 +114,7 @@ export function ArenaDuel({ userId }: { userId: string }) {
           <div className="flex-1">
             <MonacoEditor
               language="python"
-              theme="vs-light"
+              theme={dark ? "vs-dark" : "light"}
               value={code}
               onChange={handleCodeChange}
               options={{ 

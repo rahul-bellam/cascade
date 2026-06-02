@@ -40,38 +40,38 @@ export function LessonPlayer({ lesson }: { lesson: any }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-4rem)] p-4">
       <ConceptPanel lesson={lesson} />
-      <div className="flex flex-col bg-black border border-[#1a1a1a] overflow-hidden">
+      <div className="flex flex-col bg-bg border border-border overflow-hidden">
         <div className="flex-1 min-h-[200px]">
           <CodeEditor value={code} onChange={setCode} language="python" />
         </div>
-        <div className="flex gap-2 p-2 border-t border-[#1a1a1a] items-center">
+        <div className="flex gap-2 p-2 border-t border-border items-center">
           <button
             onClick={submit}
             disabled={running}
-            className="px-4 py-2 border border-[#00ff41] text-[#00ff41] bg-transparent hover:bg-[#00ff41] hover:text-black text-sm font-mono disabled:opacity-30"
+            className="px-4 py-2 border border-accent-500 text-accent-700 bg-transparent hover:bg-accent-600 hover:text-white text-sm  disabled:opacity-30"
           >
-            {running ? 'running...' : '$ submit'}
+            {running ? 'Running…' : 'Submit'}
           </button>
           <button
             onClick={revealHint}
             disabled={hintLevel >= (lesson.hint_count || 3)}
-            className="px-3 py-2 border border-[#c0c0c0] text-[#c0c0c0] hover:bg-[#c0c0c0] hover:text-black text-xs font-mono disabled:opacity-30 bg-transparent"
+            className="px-3 py-2 border border-border text-muted hover:bg-surface-2 hover:text-white text-xs  disabled:opacity-30 bg-transparent"
           >
-            $ hint ({hintLevel}/{lesson.hint_count || 3})
+            Hint ({hintLevel}/{lesson.hint_count || 3})
           </button>
           <button
             onClick={() => { setCode(lesson.snippet_starter_code || ''); setResult(null); }}
-            className="px-3 py-2 text-[#c0c0c0] hover:text-[#00ff41] text-xs font-mono bg-transparent"
+            className="px-3 py-2 text-muted hover:text-accent-700 text-xs  bg-transparent"
           >
             reset
           </button>
         </div>
         {hints.length > 0 && (
-          <div className="px-4 py-2 border-t border-[#1a1a1a] text-[#c0c0c0] text-xs font-mono space-y-1">
+          <div className="px-4 py-2 border-t border-border text-muted text-xs  space-y-1">
             {hints.map((h, i) => <div key={i}>&gt; l{h.level}: {h.text}</div>)}
           </div>
         )}
-        {error && <div className="px-4 py-2 border-t border-[#ff3333] text-[#ff3333] text-xs font-mono">&gt; {error}</div>}
+        {error && <div className="px-4 py-2 border-t border-danger text-danger text-xs ">&gt; {error}</div>}
         <TestResults result={result} />
       </div>
     </div>
