@@ -1,0 +1,190 @@
+# Notification System — Cascade DAG
+# Failure chain for a multi-channel notifier (push/email/SMS): synchronous sends,
+# queue backpressure, poison messages, duplicate delivery, retry storms, provider
+# outages. Grounded in real incidents (queue backups, retry storms amplifying load).
+
+archetype: notification_system
+name: "Notification System"
+slug: notification-system
+version: 1.0
+
+lessons:
+  - message-queues
+  - retry-backoff
+  - circuit-breaker
+
+start: origin
+
+nodes:
+  - id: origin
+    type: starting_state
+    description: "API handler sends email/SMS/push inline during the HTTP request. Works for a handful of users."
+    expected_failures:
+      - "What happens to request latency when the provider is slow?"
+      - "What happens on a traffic spike (1M notifications at once)?"
+      - "What if a single message can't be processed?"
+    transitions:
+      - to: synchronous_sends
+        weight: 1.0
+
+  - id: synchronous_sends
+    type: issue
+    severity: high
+    category: performance
+    description: "Sending inline blocks the request. When the email provider takes 3s, every user-facing request takes 3s+."
+    concern_ids: [217, 4]
+    expected_reasoning:
+      diagnosis: ["work done inline in http path", "blocking on provider", "latency coupling"]
+      tradeoffs: ["eventual delivery", "queue infra to operate"]
+      foresight: ["queue can back up under spike", "messages can be lost without durability"]
+    solution_signature:
+      required: [async_processing]
+      preferred: message_queue
+    hints:
+      - {level: 1, cost: 10, text: "Why does a slow provider make your whole API slow?"}
+      - {level: 2, cost: 25, text: "Get the send off the request path."}
+      - {level: 3, cost: 50, text: "Enqueue notifications to a message queue and process them with workers."}
+    transitions:
+      - {to: queue_backpressure, condition: "fix_contains('queue') OR fix_contains('kafka') OR fix_contains('sqs') OR fix_contains('worker')", weight: 0.6}
+      - {to: lost_messages, condition: "fix_contains('async') AND NOT fix_contains('queue') AND NOT fix_contains('durable')", weight: 0.3}
+      - {to: terminal_fail, condition: "fix_empty()", weight: 0.1}
+
+  - id: lost_messages
+    type: issue
+    severity: high
+    category: data_loss
+    description: "Fire-and-forget threads die with the process. Crash mid-batch and those notifications are gone forever."
+    concern_ids: [218]
+    expected_reasoning:
+      diagnosis: ["no durable queue", "in-process work lost on crash", "no delivery guarantee"]
+      tradeoffs: ["broker operations", "at-least-once duplicates"]
+      foresight: ["spikes overwhelm consumers", "poison messages block progress"]
+    solution_signature:
+      required: [durable_queue]
+      preferred: persistent_broker
+    hints:
+      - {level: 1, cost: 10, text: "Where do in-flight notifications live if the box reboots?"}
+      - {level: 2, cost: 25, text: "Use a durable broker, not in-memory threads."}
+      - {level: 3, cost: 50, text: "Persist to a durable queue (Kafka/SQS) with acked consumption."}
+    transitions:
+      - {to: queue_backpressure, condition: "fix_contains('queue') OR fix_contains('durable') OR fix_contains('broker')", weight: 1.0}
+
+  - id: queue_backpressure
+    type: issue
+    severity: high
+    category: resource_exhaustion
+    description: "A campaign enqueues 5M notifications. Consumers can't keep up; the queue grows unbounded and delivery lags by hours."
+    concern_ids: [219, 4]
+    expected_reasoning:
+      diagnosis: ["producers outpace consumers", "unbounded backlog", "no scaling of workers"]
+      tradeoffs: ["more worker cost", "ordering complexity"]
+      foresight: ["one bad message can still block a partition", "duplicates on retry"]
+    solution_signature:
+      required: [consumer_scaling]
+      preferred: autoscale_partitions
+    hints:
+      - {level: 1, cost: 10, text: "The backlog only grows. What side of the queue is too slow?"}
+      - {level: 2, cost: 25, text: "Scale consumers (and partitions) to match producer rate; add backpressure."}
+      - {level: 3, cost: 50, text: "Partition the topic and autoscale a consumer group; apply backpressure to producers."}
+    transitions:
+      - {to: poison_message, condition: "fix_contains('partition') OR fix_contains('scale') OR fix_contains('consumer') OR fix_contains('backpressure')", weight: 0.55}
+      - {to: duplicate_delivery, condition: "fix_contains('scale') AND fix_contains('parallel')", weight: 0.45}
+
+  - id: poison_message
+    type: issue
+    severity: high
+    category: availability
+    description: "One malformed payload throws on every consume. The consumer retries it forever; the whole partition stops moving."
+    concern_ids: [218, 221]
+    expected_reasoning:
+      diagnosis: ["unprocessable message", "infinite retry blocks partition", "no dead letter handling"]
+      tradeoffs: ["dropped messages need review", "dlq operations"]
+      foresight: ["retries can duplicate deliveries", "provider can still fail"]
+    solution_signature:
+      required: [dead_letter_queue]
+      preferred: dlq_with_max_retries
+    hints:
+      - {level: 1, cost: 10, text: "One message keeps failing — why does it stop *everything*?"}
+      - {level: 2, cost: 25, text: "After N failures, get the bad message out of the way."}
+      - {level: 3, cost: 50, text: "Add a dead-letter queue with a max-retry limit so poison messages are quarantined."}
+    transitions:
+      - {to: duplicate_delivery, condition: "fix_contains('dlq') OR fix_contains('dead letter') OR fix_contains('max retr')", weight: 0.7}
+      - {to: retry_storm, condition: "fix_contains('retry') AND NOT fix_contains('dlq')", weight: 0.3}
+
+  - id: duplicate_delivery
+    type: issue
+    severity: medium
+    category: consistency
+    description: "At-least-once + retries means users get the same push 5 times. Complaints flood in."
+    concern_ids: [219, 220]
+    expected_reasoning:
+      diagnosis: ["at least once delivery", "non-idempotent send", "duplicate notifications"]
+      tradeoffs: ["dedup store cost", "exactly-once is expensive"]
+      foresight: ["provider outage can still cause retry storms"]
+    solution_signature:
+      required: [idempotency]
+      preferred: idempotency_key_dedup
+    hints:
+      - {level: 1, cost: 10, text: "Retries are good — so why are users seeing 5 copies?"}
+      - {level: 2, cost: 25, text: "Make a repeated send a no-op."}
+      - {level: 3, cost: 50, text: "Attach an idempotency key per notification and dedupe before sending."}
+    transitions:
+      - {to: retry_storm, condition: "fix_contains('idempot') OR fix_contains('dedup') OR fix_contains('key')", weight: 0.6}
+      - {to: provider_outage, condition: "fix_contains('idempot') AND fix_contains('provider')", weight: 0.4}
+
+  - id: retry_storm
+    type: issue
+    severity: high
+    category: availability
+    description: "The SMS provider has a blip. Every worker retries immediately and in lockstep, amplifying load 10x and prolonging the outage."
+    concern_ids: [220, 115]
+    expected_reasoning:
+      diagnosis: ["synchronized immediate retries", "thundering herd on provider", "self-amplifying load"]
+      tradeoffs: ["slower recovery for individual messages", "complexity"]
+      foresight: ["provider can fully fail — need a breaker/fallback"]
+    solution_signature:
+      required: [backoff]
+      preferred: exponential_backoff_jitter
+    hints:
+      - {level: 1, cost: 10, text: "A small blip became a big outage. What did the retries do?"}
+      - {level: 2, cost: 25, text: "Don't retry immediately or in lockstep."}
+      - {level: 3, cost: 50, text: "Use exponential backoff with jitter. See your Toolkit for retry_with_backoff."}
+    transitions:
+      - {to: provider_outage, condition: "fix_contains('backoff') OR fix_contains('jitter') OR fix_contains('exponential')", weight: 0.7}
+      - {to: terminal_stable, condition: "fix_contains('backoff') AND fix_contains('circuit')", weight: 0.3}
+
+  - id: provider_outage
+    type: issue
+    severity: critical
+    category: availability
+    description: "The primary email provider is fully down for an hour. With no fallback, no notifications go out at all."
+    concern_ids: [115, 122]
+    expected_reasoning:
+      diagnosis: ["single provider dependency", "no failover", "no circuit breaker"]
+      tradeoffs: ["multi-provider cost/complexity", "fallback deliverability"]
+      foresight: ["system otherwise resilient"]
+    solution_signature:
+      required: [provider_failover]
+      preferred: circuit_breaker_multi_provider
+    hints:
+      - {level: 1, cost: 10, text: "Your only provider is down. What's plan B?"}
+      - {level: 2, cost: 25, text: "Stop hammering the dead provider and route around it."}
+      - {level: 3, cost: 50, text: "Add a circuit breaker + secondary provider failover. See your Toolkit for circuit_breaker."}
+    transitions:
+      - {to: terminal_stable, condition: "fix_contains('circuit') OR fix_contains('fallback') OR fix_contains('failover') OR fix_contains('secondary')", weight: 0.8}
+      - {to: terminal_stable_costly, condition: "fix_contains('manual') OR fix_contains('pause')", weight: 0.2}
+
+  - id: terminal_stable
+    type: terminal
+    outcome: survived
+    description: "Async, durable, autoscaled, DLQ-protected, idempotent, backoff + circuit-breaker with provider failover. Reliable at scale."
+
+  - id: terminal_stable_costly
+    type: terminal
+    outcome: survived
+    description: "It delivers — but leans on manual intervention and over-provisioned workers. Stable, not cheap."
+
+  - id: terminal_fail
+    type: terminal
+    outcome: failed
+    description: "Still sending inline. The first move — getting work off the request path — was never made."

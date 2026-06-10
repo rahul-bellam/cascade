@@ -1,41 +1,41 @@
 name: Deploy
 
+# Build & publish backend container images to GitHub Container Registry (GHCR).
+# Free, no cloud account required — works for the bootstrap (single-box / PaaS)
+# phase. A VPS or Railway/Render can pull these tagged images directly.
+#
+# The legacy AWS ECS / k8s rollout lives in deploy-aws.yml.disabled and is only
+# relevant once the product outgrows a single box (see docs/deployment-strategy.md).
+
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch: {}
 
-env:
-  AWS_REGION: us-east-1
-  ECR_REPOSITORY: cascade
-  ECS_CLUSTER: cascade-production
-  ECS_SERVICE: cascade-api
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
-        with:
-          version: "latest"
-      - run: uv venv && uv sync
-      - run: uv run ruff check src/
-      - run: uv run pytest tests/ --cov=src --cov-report=xml
-      - uses: codecov/codecov-action@v4
-        with:
-          file: ./coverage.xml
+  # Reuse the real CI as the gate. (CI runs on push to main already; this keeps
+  # the dependency explicit so images are only built from green commits.)
+  ci:
+    uses: ./.github/workflows/ci.yml
 
   build-and-push:
-    needs: [test]
+    needs: [ci]
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         service:
           - cascade-engine
-          - learn-engine
           - constraint-engine
+          - learn-engine
           - insight-engine
           - arena-engine
           - refactor-engine
@@ -43,59 +43,25 @@ jobs:
           - user
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          registry: ${{ secrets.AWS_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-          username: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build & push ${{ matrix.service }}
-        working-directory: services/${{ matrix.service }}
-        run: |
-          docker build -t ${{ env.ECR_REPOSITORY }}/${{ matrix.service }}:${{ github.sha }} .
-          docker push ${{ env.ECR_REPOSITORY }}/${{ matrix.service }}:${{ github.sha }}
-
-  deploy-ecs:
-    needs: [build-and-push]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
+        uses: docker/build-push-action@v6
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-      - run: |
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service ${{ env.ECS_SERVICE }} \
-            --force-new-deployment
-
-  deploy-k8s:
-    needs: [build-and-push]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-kubectl@v4
-      - run: |
-          kubectl set image deployment/cascade-engine cascade-engine=${{ env.ECR_REPOSITORY }}/cascade-engine:${{ github.sha }} -n cascade
-          kubectl set image deployment/learn-engine learn-engine=${{ env.ECR_REPOSITORY }}/learn-engine:${{ github.sha }} -n cascade
-          kubectl set image deployment/constraint-engine constraint-engine=${{ env.ECR_REPOSITORY }}/constraint-engine:${{ github.sha }} -n cascade
-          kubectl set image deployment/insight-engine insight-engine=${{ env.ECR_REPOSITORY }}/insight-engine:${{ github.sha }} -n cascade
-          kubectl set image deployment/arena-engine arena-engine=${{ env.ECR_REPOSITORY }}/arena-engine:${{ github.sha }} -n cascade
-          kubectl set image deployment/refactor-engine refactor-engine=${{ env.ECR_REPOSITORY }}/refactor-engine:${{ github.sha }} -n cascade
-          kubectl set image deployment/auth auth=${{ env.ECR_REPOSITORY }}/auth:${{ github.sha }} -n cascade
-          kubectl set image deployment/user user=${{ env.ECR_REPOSITORY }}/user:${{ github.sha }} -n cascade
-
-  terraform:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.7
-      - run: terraform init
-        working-directory: terraform
-      - run: terraform fmt -check
-        working-directory: terraform
-      - run: terraform validate
-        working-directory: terraform
+          # Dockerfiles expect the repo root as build context (they COPY content/).
+          context: .
+          file: services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/${{ matrix.service }}:latest
+            ghcr.io/${{ github.repository }}/${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

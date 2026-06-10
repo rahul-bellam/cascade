@@ -34,6 +34,21 @@ def set_time(t):
 def advance(dt):
     _CLOCK["t"] += float(dt)
 
+# ---- deterministic hashes (stable across processes; for hashing lessons) ----
+import hashlib as _hashlib
+def stable_hash(s, seed=0):
+    h = _hashlib.sha256(f"{seed}:{s}".encode()).hexdigest()
+    return int(h[:12], 16)
+def ring_hash(s):
+    return stable_hash(s, 0)
+def bloom_hash(item, seed):
+    return stable_hash(item, seed)
+
+# ---- recorded sleep (for retry/backoff lessons; no real waiting) ----
+WAITS = []
+def sleep(seconds):
+    WAITS.append(seconds)
+
 # ---- fake redis ---------------------------------------------------------
 class _FakeRedis:
     def __init__(self):

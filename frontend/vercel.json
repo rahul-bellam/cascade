@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "comment": "Set the server-side proxy targets as Vercel Project Environment Variables (NOT here, so they stay secret): CASCADE_ENGINE_URL, LEARN_ENGINE_URL, CONSTRAINT_ENGINE_URL, REFACTOR_ENGINE_URL, ARENA_ENGINE_URL, AUTH_SERVICE_URL. Point each at the public HTTPS address of the backend box (e.g. https://api.cascade.dev). These are read by src/pages/api/*/[...path].ts at request time. Set the Vercel Root Directory to 'frontend'."
+}

@@ -30,6 +30,18 @@ class StartReq(BaseModel):
 def health():
     return {"status": "operational", "service": "refactor-engine"}
 
+@app.get("/refactor/codebases")
+def list_codebases():
+    out = []
+    if os.path.isdir(CODEBASES_DIR):
+        for name in sorted(os.listdir(CODEBASES_DIR)):
+            p = os.path.join(CODEBASES_DIR, name)
+            if os.path.isdir(p) and not name.startswith("."):
+                pyfiles = [f for f in os.listdir(p) if f.endswith(".py")]
+                out.append({"slug": name, "files": len(pyfiles)})
+    return {"codebases": out}
+
+
 @app.post("/refactor/start")
 def start(req: StartReq):
     codebase_path = os.path.join(CODEBASES_DIR, req.codebase)

@@ -17,6 +17,8 @@ __pycache__/
 # Environment
 .env
 .env.local
+.env.prod
+.env.*.local
 *.log
 
 # IDE
@@ -40,4 +42,5 @@ go/pkg/sumdb/
 
 # Go compiled binaries
 services/cascade-engine/cascade-engine
-services/constraint-engine/constraint-enginetsconfig.tsbuildinfo
+services/constraint-engine/constraint-engine*.tsbuildinfo
+tsconfig.tsbuildinfo

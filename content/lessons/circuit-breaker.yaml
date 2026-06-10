@@ -1,0 +1,86 @@
+slug: circuit-breaker
+title: "Circuit Breaker"
+prerequisites: [retry-backoff]
+estimated_minutes: 15
+order_index: 7
+toolkit_key: circuit_breaker
+
+concept:
+  - type: text
+    body: >
+      A circuit breaker stops calling a failing dependency so you don't pile
+      requests onto something already down. After `threshold` consecutive
+      failures it OPENS: calls fail fast instead of hanging. After a cooldown it
+      goes HALF-OPEN to test one call; success CLOSES it again, failure re-opens.
+  - type: code_block
+    language: python
+    code: |
+      # states: 'closed' (normal) -> 'open' (fail fast) -> 'half_open' (probe)
+
+snippet:
+  prompt: |
+    Implement a CircuitBreaker:
+      __init__(self, threshold, cooldown)   # consecutive failures to open; seconds
+      call(self, fn) -> result
+    Behaviour:
+      - CLOSED: run fn(). On success reset the failure count. On exception,
+        increment failures; if failures >= threshold, OPEN (record opened-at = now()).
+      - OPEN: if now() - opened_at < cooldown, raise Exception('circuit open')
+        WITHOUT calling fn. Once cooldown passes, move to HALF-OPEN.
+      - HALF-OPEN: run fn(); success -> CLOSED (reset); failure -> OPEN again.
+    Use the provided now() for time. Expose self.state ('closed'/'open'/'half_open').
+  starter_code: |
+    class CircuitBreaker:
+        def __init__(self, threshold, cooldown):
+            # Your code here
+            pass
+
+        def call(self, fn):
+            # Your code here
+            pass
+  test_cases:
+    - name: "Stays closed on success"
+      setup: "set_time(0); cb = CircuitBreaker(3, 10); r = cb.call(lambda: 42)"
+      call: "(r, cb.state)"
+      expected: "[42, 'closed']"
+    - name: "Opens after threshold consecutive failures"
+      setup: |
+        set_time(0); cb = CircuitBreaker(2, 10)
+        def boom(): raise ValueError('x')
+        for _ in range(2):
+            try: cb.call(boom)
+            except Exception: pass
+      call: "cb.state"
+      expected: "open"
+    - name: "Fails fast while open (does not call fn)"
+      setup: |
+        set_time(0); cb = CircuitBreaker(1, 10)
+        def boom(): raise ValueError('x')
+        try: cb.call(boom)
+        except Exception: pass
+        called = {'n': 0}
+        def probe(): called['n'] += 1; return 'ok'
+        try: cb.call(probe)
+        except Exception: pass
+      call: "called['n']"
+      expected: "0"
+    - name: "Half-open probe closes on success after cooldown"
+      setup: |
+        set_time(0); cb = CircuitBreaker(1, 10)
+        def boom(): raise ValueError('x')
+        try: cb.call(boom)
+        except Exception: pass
+        set_time(11)
+        r = cb.call(lambda: 'recovered')
+      call: "(r, cb.state)"
+      expected: "['recovered', 'closed']"
+  hints:
+    - level: 1
+      cost: 10
+      text: "Track state, a failure counter, and the time you opened."
+    - level: 2
+      cost: 25
+      text: "When open, compare now() - opened_at to cooldown before deciding to probe or fail fast."
+    - level: 3
+      cost: 50
+      text: "Half-open: one probe call; success resets to closed, failure re-opens and resets opened_at = now()."

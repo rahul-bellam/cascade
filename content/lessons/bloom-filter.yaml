@@ -1,0 +1,70 @@
+slug: bloom-filter
+title: "Bloom Filter"
+prerequisites: []
+estimated_minutes: 15
+order_index: 4
+toolkit_key: bloom_filter
+
+concept:
+  - type: text
+    body: >
+      A Bloom filter is a tiny, probabilistic set. It answers "have I seen this?"
+      with either "definitely no" or "maybe yes" — never a false negative, but
+      sometimes a false positive. It uses a bit array and k hash functions: to add
+      an item, set k bits; to check, test those k bits.
+  - type: text
+    body: >
+      For a URL shortener it pre-filters lookups so the expensive store is only
+      hit for codes that might exist — cutting load dramatically and cheaply.
+  - type: code_block
+    language: python
+    code: |
+      # add: set bits at k hashed positions. check: all those bits set?
+      for i in range(k):
+          bits[(hash_fn(item, i)) % m] = 1
+
+snippet:
+  prompt: |
+    Implement a BloomFilter class:
+      __init__(self, size, k)        # bit-array length, number of hashes
+      add(self, item)                # set k bits for item
+      __contains__(self, item)->bool # True if all k bits are set
+    Use the provided `bloom_hash(item, seed)` (stable int) for hashing; index the
+    bit array with bloom_hash(item, i) % size for i in range(k).
+    The guarantee: an added item must always test True (no false negatives).
+  starter_code: |
+    class BloomFilter:
+        def __init__(self, size, k):
+            # Your code here
+            pass
+
+        def add(self, item):
+            # Your code here
+            pass
+
+        def __contains__(self, item):
+            # Your code here
+            pass
+  test_cases:
+    - name: "Added items are always present (no false negatives)"
+      setup: "b = BloomFilter(2048, 4)\nfor x in ['abc','def','ghi']: b.add(x)"
+      call: "all(x in b for x in ['abc','def','ghi'])"
+      expected: "True"
+    - name: "An item never added is (probably) absent"
+      setup: "b = BloomFilter(4096, 4); b.add('seen')"
+      call: "'definitely-never-added-zzz' in b"
+      expected: "False"
+    - name: "Empty filter contains nothing"
+      setup: "b = BloomFilter(1024, 3)"
+      call: "'anything' in b"
+      expected: "False"
+  hints:
+    - level: 1
+      cost: 10
+      text: "Store a list of `size` zero bits; pick k positions per item with bloom_hash(item, i) % size."
+    - level: 2
+      cost: 25
+      text: "add() sets those k positions to 1; __contains__ returns True only if ALL k are 1."
+    - level: 3
+      cost: 50
+      text: "for i in range(self.k): idx = bloom_hash(item, i) % self.size — set or test bits[idx]."

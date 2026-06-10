@@ -6,7 +6,8 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
 import { SeverityBadge } from '../ui/SeverityBadge';
-import { IconBolt, IconLightbulb, IconToolbox, IconShield, IconSkull, IconSpinner } from '../ui/icons';
+import { IconBolt, IconLightbulb, IconToolbox, IconShield, IconSkull, IconSpinner, IconCheck, IconRefresh } from '../ui/icons';
+import { FailureViz } from './FailureViz';
 
 const USER_ID = 'demo-user';
 
@@ -60,8 +61,17 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
   const [done, setDone] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const [rawDag, setRawDag] = useState<any>(null);
   const [summary, setSummary] = useState<any>(null);
+  // reasoning-first gate
+  const [reasonMode, setReasonMode] = useState(true);
+  const [diagnosis, setDiagnosis] = useState('');
+  const [tradeoffs, setTradeoffs] = useState('');
+  const [foresight, setForesight] = useState('');
+  const [insight, setInsight] = useState<any>(null);   // {diagnosis_score,...,unlocked,process_hint}
+  const [scoring, setScoring] = useState(false);
+  const [reasonedCount, setReasonedCount] = useState(0);
 
   const begin = async () => {
     setErr(null); setChain([]); setDone(null); setHints([]); setHintLevel(0); setSummary(null);
@@ -87,8 +97,14 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
     setBusy(true); setErr(null);
     try {
       const r = await cascadeApi.fix(sid, fix);
-      setChain((c) => [...c, { from: node, fix, to: r.next, reason: r.edge_reason }]);
+      // brief "you fixed it" beat: flash the current viz to recovering before the next failure
+      setRecovering(true);
+      await new Promise((res) => setTimeout(res, 900));
+      setRecovering(false);
+      setChain((c) => [...c, { from: node, fix, to: r.next, reason: r.edge_reason, reasoned: insight?.unlocked }]);
+      if (insight?.unlocked) setReasonedCount((n) => n + 1);
       setFix(''); setHints([]); setHintLevel(0);
+      setDiagnosis(''); setTradeoffs(''); setForesight(''); setInsight(null);
       setNode(r.next);
       if (r.status !== 'active') {
         setDone({ status: r.status, score: r.score });
@@ -96,6 +112,16 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
       }
     } catch (e: any) { setErr(String(e.message || e)); }
     finally { setBusy(false); }
+  };
+
+  const submitReasoning = async () => {
+    if (!sid) return;
+    setScoring(true); setErr(null);
+    try {
+      const r = await cascadeApi.insight(sid, diagnosis, tradeoffs, foresight);
+      setInsight(r);
+    } catch (e: any) { setErr(String(e.message || e)); }
+    finally { setScoring(false); }
   };
 
   const revealHint = async () => {
@@ -204,6 +230,11 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
                   <p className="text-sm leading-relaxed text-muted">{node.description}</p>
                 </div>
 
+                {!node.is_terminal && node.type !== 'terminal' && (
+                  <FailureViz category={node.category} severity={node.severity}
+                    state={recovering ? 'recovering' : 'failing'} />
+                )}
+
                 <div className="flex gap-2">
                   <span className="text-[10px] px-2 py-1 border border-border text-muted">id: {node.node_id}</span>
                   {node.category && (
@@ -236,27 +267,76 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
                 </div>
               )}
 
-              <div className="space-y-2 flex-1">
-                <h2 className="text-xs uppercase text-muted tracking-wider">Submit fix</h2>
+              <div className="space-y-3 flex-1">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xs uppercase text-muted tracking-wider">
+                    {reasonMode && node.has_reasoning ? 'Reason, then fix' : 'Submit fix'}
+                  </h2>
+                  {node.has_reasoning && (
+                    <label className="flex items-center gap-1.5 text-[11px] text-muted cursor-pointer select-none">
+                      <input type="checkbox" checked={reasonMode}
+                        onChange={(e) => { setReasonMode(e.target.checked); setInsight(null); }}
+                        className="accent-[color:var(--accent-600,#2f6457)]" />
+                      Reason-first
+                    </label>
+                  )}
+                </div>
+
+                {/* reasoning gate */}
+                {reasonMode && node.has_reasoning && !insight?.unlocked && (
+                  <div className="space-y-2 rounded-xl border border-border bg-bg p-3">
+                    <p className="text-xs text-muted">
+                      Before you touch the fix, reason about it. An AI scores your thinking against the
+                      real failure model.
+                    </p>
+                    <ReasonField label="What's actually failing & why" value={diagnosis} onChange={setDiagnosis}
+                      score={insight?.diagnosis_score} />
+                    <ReasonField label="What's the trade-off of your fix" value={tradeoffs} onChange={setTradeoffs}
+                      score={insight?.tradeoff_score} />
+                    <ReasonField label="What new failure might it cause" value={foresight} onChange={setForesight}
+                      score={insight?.foresight_score} />
+                    {insight?.process_hint && (
+                      <div className="flex items-start gap-2 rounded-lg border border-border bg-surface-2 p-2 text-xs text-muted">
+                        <IconLightbulb width={13} height={13} className="mt-0.5 shrink-0 text-accent-700" />
+                        {insight.process_hint}
+                      </div>
+                    )}
+                    <button onClick={submitReasoning}
+                      disabled={scoring || !diagnosis.trim()}
+                      className="w-full rounded-full bg-accent-600 px-4 py-2 text-sm font-500 text-white transition hover:bg-accent-700 disabled:opacity-40">
+                      {scoring ? 'Scoring your reasoning…' : insight ? 'Re-check reasoning' : 'Check my reasoning'}
+                    </button>
+                  </div>
+                )}
+
+                {/* unlocked confirmation */}
+                {reasonMode && node.has_reasoning && insight?.unlocked && (
+                  <div className="flex items-center gap-2 rounded-lg border border-accent-500 bg-accent-100 p-2 text-xs text-accent-700">
+                    <IconCheck width={14} height={14} /> Reasoning accepted ({Math.round((insight.total || 0) * 100)}%). Now apply your fix.
+                  </div>
+                )}
+
+                {/* fix box — locked until reasoning passes (when reason-first is on) */}
                 <textarea
                   value={fix}
                   onChange={(e) => setFix(e.target.value)}
-                  placeholder="describe your fix..."
-                  className="w-full h-32 p-3 bg-bg border border-border text-sm text-accent-700 outline-none focus:border-accent-500  resize-none"
+                  placeholder={reasonMode && node.has_reasoning && !insight?.unlocked ? 'Unlock by reasoning above first…' : 'Describe your fix…'}
+                  disabled={reasonMode && node.has_reasoning && !insight?.unlocked}
+                  className="w-full h-28 p-3 bg-bg border border-border text-sm text-fg outline-none focus:border-accent-500 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                 />
 
-                <div className="flex gap-2 pt-2">
+                <div className="flex gap-2">
                   <button
                     onClick={submitFix}
-                    disabled={busy || !fix.trim()}
-                    className="flex-1 px-4 py-2 border border-accent-500 text-accent-700 bg-transparent hover:bg-accent-600 hover:text-white text-sm  disabled:opacity-30"
+                    disabled={busy || !fix.trim() || (reasonMode && node.has_reasoning && !insight?.unlocked)}
+                    className="flex-1 rounded-full bg-accent-600 px-4 py-2 text-sm font-500 text-white transition hover:bg-accent-700 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {busy ? <span className="inline-flex items-center gap-1.5"><IconSpinner width={14} height={14} /> Evaluating…</span> : 'Apply fix'}
                   </button>
                   <button
                     onClick={revealHint}
                     disabled={hintLevel >= (node.hint_count || 0)}
-                    className="px-4 py-2 border border-border text-muted hover:bg-surface-2 hover:text-white text-xs  disabled:opacity-30 bg-transparent"
+                    className="rounded-full border border-border px-4 py-2 text-xs text-muted transition hover:bg-surface-2 hover:text-fg disabled:opacity-30"
                   >
                     Hint ({hintLevel}/{node.hint_count || 0})
                   </button>
@@ -319,42 +399,121 @@ export function CascadePlayer({ archetype = 'rate-limiter' }: { archetype?: stri
           )}
 
           {done && summary && (
-            <div className="absolute inset-0 bg-bg/80 flex items-center justify-center z-50">
-              <div className="bg-bg border border-border p-8 max-w-2xl w-full">
-                <div className="text-center mb-8">
-                  <div className="flex justify-center mb-4">{done.status === 'survived' ? <IconShield width={40} height={40} className="text-accent-700" /> : <IconSkull width={40} height={40} className="text-danger" />}</div>
-                  <h2 className="text-xl font-bold mb-2 ">
-                    {done.status === 'survived' ? 'System stabilized' : 'Catastrophic failure'}
-                  </h2>
-                  <div className="flex justify-center gap-4 text-xs  text-muted">
-                    <span>score: <strong className="text-accent-700">{summary.score}</strong></span>
-                    <span>depth: <strong>{summary.depth}</strong></span>
-                    <span>hints: <strong>{summary.hints_used}</strong></span>
-                  </div>
-                </div>
-
-                <div className="border border-border p-4 mb-6 max-h-64 overflow-y-auto">
-                  <h3 className="text-xs uppercase text-muted tracking-wider mb-4 ">Post-mortem</h3>
-                  <div className="space-y-4">
-                    {summary.path.map((p: any, i: number) => (
-                      <div key={i} className="text-xs ">
-                        <div className="text-[10px] text-muted mb-1">step {p.step}</div>
-                        <div className="mb-1 text-muted">issue: {p.problem}</div>
-                        <div className="mb-1 text-accent-700">fix: {p.your_fix}</div>
-                        <div className="text-muted">result: {p.led_to_problem}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex justify-center">
-                  <button onClick={begin} className="px-6 py-3 border border-accent-500 text-accent-700 bg-transparent hover:bg-accent-600 hover:text-white ">Run again</button>
-                </div>
-              </div>
-            </div>
+            <Outcome done={done} summary={summary} name={name} onRestart={begin} />
           )}
         </div>
       </main>
+    </div>
+  );
+}
+
+/* ---- celebratory end-of-run screen ---- */
+function rankFor(depth: number, survived: boolean): { title: string; note: string } {
+  if (!survived) return { title: 'System Down', note: 'The chain won this time.' };
+  if (depth >= 6) return { title: 'Principal Firefighter', note: 'You saw failures before they happened.' };
+  if (depth >= 4) return { title: 'Staff Responder', note: 'Deep survival under pressure.' };
+  if (depth >= 2) return { title: 'On-call Engineer', note: 'Solid incident instincts.' };
+  return { title: 'First Responder', note: 'You made it out.' };
+}
+
+function Outcome({ done, summary, name, onRestart }:
+  { done: any; summary: any; name: string; onRestart: () => void }) {
+  const survived = done.status === 'survived';
+  const rank = rankFor(summary.depth, survived);
+  const [score, setScore] = React.useState(0);
+  const [copied, setCopied] = React.useState(false);
+
+  // count-up score
+  React.useEffect(() => {
+    const target = summary.score || 0;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { setScore(target); return; }
+    const start = performance.now(); let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / 900);
+      setScore(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [summary.score]);
+
+  const shareText = `I survived ${summary.depth} cascading failure${summary.depth === 1 ? '' : 's'} in the ${name} cascade on Cascade — rank: ${rank.title} (${summary.score} pts).`;
+  const share = async () => {
+    try { await navigator.clipboard.writeText(shareText); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch {}
+  };
+
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-bg/85 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg animate-fade-in-up rounded-2xl border border-border bg-surface p-8 shadow-lift">
+        <div className="text-center">
+          <div className={`mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full ${survived ? 'bg-accent-100 text-accent-700' : 'bg-danger/10 text-danger'}`}>
+            {survived ? <IconShield width={30} height={30} /> : <IconSkull width={30} height={30} />}
+          </div>
+          <div className="mb-1 text-xs uppercase tracking-[0.18em] text-muted">{survived ? 'You survived' : 'You went down'}</div>
+          <h2 className="font-serif text-3xl font-600">{rank.title}</h2>
+          <p className="mt-1 text-sm text-muted">{rank.note}</p>
+
+          <div className="mt-6 grid grid-cols-3 gap-3">
+            <Stat label="Score" value={score} accent />
+            <Stat label="Depth" value={summary.depth} />
+            <Stat label="Hints" value={summary.hints_used} />
+          </div>
+        </div>
+
+        {/* post-mortem timeline */}
+        <div className="mt-6 max-h-52 overflow-y-auto rounded-xl border border-border bg-bg p-4">
+          <h3 className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted">
+            <IconCheck width={13} height={13} /> Post-mortem
+          </h3>
+          <ol className="space-y-2.5">
+            {summary.path.map((p: any, i: number) => (
+              <li key={i} className="text-xs">
+                <span className="font-mono text-muted">{String(i + 1).padStart(2, '0')}</span>{' '}
+                <span className="text-fg">{p.problem}</span>
+                <div className="ml-5 text-accent-700">↳ {p.your_fix}</div>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+          <button onClick={onRestart}
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-accent-600 px-5 py-2.5 font-500 text-white transition hover:bg-accent-700">
+            <IconRefresh width={15} height={15} /> Run again
+          </button>
+          <button onClick={share}
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-border bg-surface px-5 py-2.5 font-500 text-fg transition hover:border-accent-300">
+            {copied ? 'Copied!' : 'Share result'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+  return (
+    <div className="rounded-xl border border-border bg-bg py-3 text-center">
+      <div className={`font-serif text-2xl font-600 tabular-nums ${accent ? 'text-accent-700' : 'text-fg'}`}>{value}</div>
+      <div className="text-[11px] uppercase tracking-wider text-muted">{label}</div>
+    </div>
+  );
+}
+
+/* a labeled reasoning input with an optional per-axis score pill */
+function ReasonField({ label, value, onChange, score }:
+  { label: string; value: string; onChange: (v: string) => void; score?: number }) {
+  const pct = score != null ? Math.round(score * 100) : null;
+  const tone = pct == null ? '' : pct >= 50 ? 'text-accent-700' : pct >= 30 ? 'text-warn' : 'text-danger';
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-[11px] text-muted">{label}</span>
+        {pct != null && <span className={`text-[11px] font-mono ${tone}`}>{pct}%</span>}
+      </div>
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={2}
+        className="w-full resize-none rounded-lg border border-border bg-surface p-2 text-xs text-fg outline-none focus:border-accent-400" />
     </div>
   );
 }

@@ -1,0 +1,101 @@
+slug: distributed-counters
+title: "Distributed Counters"
+prerequisites: [token-bucket]
+estimated_minutes: 18
+order_index: 3
+toolkit_key: distributed_counter
+
+concept:
+  - type: text
+    body: >
+      Your token bucket worked in one process. In production, a rate limiter runs
+      behind dozens of identical app servers, all incrementing the same counter
+      for the same client. The first instinct — read the count, add one, write it
+      back — is a trap: two servers can read the same value, both add one, and
+      both write back the same number. One increment is silently lost. This is the
+      classic lost-update race, and at scale it leaks requests past your limit.
+  - type: text
+    body: >
+      The fix has two parts. First, make the increment atomic: instead of
+      read-modify-write, use a single operation the datastore guarantees is
+      indivisible — Redis `INCR`. No matter how many servers fire at once, every
+      increment is counted exactly once. Second, when one counter key becomes a
+      write hotspot (millions of ops/sec all hitting one shard), spread the load
+      across N shard keys. Each request is hashed to a stable shard so the same
+      token always lands on the same key, and the true total is the sum of all
+      shards read back at query time.
+  - type: code_block
+    language: python
+    code: |
+      # WRONG: read-modify-write loses concurrent increments
+      n = int(redis.get(key) or 0)
+      redis.set(key, n + 1)        # another server may have written between get and set
+
+      # RIGHT: atomic increment, and shard to avoid a single hot key
+      shard = stable_hash(token, 0) % N
+      redis.incr(f"{key}:shard:{shard}")
+      total = sum(int(redis.get(f"{key}:shard:{i}") or 0) for i in range(N))
+
+snippet:
+  prompt: |
+    Implement a DistributedCounter that is safe under concurrency and spreads
+    writes across shards:
+
+      __init__(self, name, shards=4)   # logical counter name + shard count
+      incr(self, token) -> int         # atomically count one event for `token`
+      total(self) -> int               # current total across all shards
+
+    Requirements:
+      - Use redis.incr(...) for the write so increments are never lost
+        (the fake `redis` client is provided in scope: get/set/incr/...).
+      - Route each token to a stable shard so the same token always hits the
+        same key. A `stable_hash(s, seed)` helper is available in scope —
+        use stable_hash(token, 0) % shards to pick the shard.
+      - total() sums every shard key, treating a missing key as 0.
+  starter_code: |
+    class DistributedCounter:
+        def __init__(self, name, shards=4):
+            # Your code here
+            pass
+
+        def incr(self, token):
+            # Your code here
+            pass
+
+        def total(self):
+            # Your code here
+            pass
+  test_cases:
+    - name: "Single increment counts exactly once"
+      setup: "redis.flushall(); c = DistributedCounter('hits', 4); c.incr('a')"
+      call: "c.total()"
+      expected: 1
+    - name: "Increments across many tokens sum correctly"
+      setup: |
+        redis.flushall(); c = DistributedCounter('hits', 4)
+        for i in range(10): c.incr(f'user{i}')
+      call: "c.total()"
+      expected: 10
+    - name: "Same token always lands on the same shard (no double count, no loss)"
+      setup: |
+        redis.flushall(); c = DistributedCounter('hits', 4)
+        for _ in range(5): c.incr('steady')
+      call: "c.total()"
+      expected: 5
+    - name: "Writes are spread across more than one shard"
+      setup: |
+        redis.flushall(); c = DistributedCounter('hits', 4)
+        for i in range(40): c.incr(f't{i}')
+        used = sum(1 for i in range(4) if redis.get(f'hits:shard:{i}'))
+      call: "used > 1"
+      expected: true
+  hints:
+    - level: 1
+      cost: 10
+      text: "Don't read-then-write. redis.incr(key) does the add atomically and returns the new value."
+    - level: 2
+      cost: 25
+      text: "Pick a shard with stable_hash(token, 0) % self.shards, then incr a per-shard key like f'{name}:shard:{i}'."
+    - level: 3
+      cost: 50
+      text: "total() loops over every shard index, reads each key (or 0 if missing), casts to int, and sums them."

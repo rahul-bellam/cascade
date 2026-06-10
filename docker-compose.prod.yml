@@ -1,0 +1,125 @@
+# Cascade — production single-box stack.
+#
+# Runs the entire backend on one machine (a $5–20/mo VPS, or a container PaaS
+# like Railway/Render that consumes a compose/Dockerfile). The Next.js frontend
+# is deployed separately to Vercel and points NEXT_PUBLIC_* / *_ENGINE_URL at
+# the public address of this box (front it with Caddy/Nginx + TLS, or use the
+# PaaS-provided HTTPS).
+#
+# Usage:
+#   cp .env.prod.example .env.prod   # fill in real secrets
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Datastores: by default this brings up Postgres + Redis as containers with a
+# persistent volume. For managed DBs (Neon/Supabase Postgres, Upstash Redis),
+# delete the postgres/redis services below and point DATABASE_URL / REDIS_URL at
+# the managed endpoints instead.
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cascade}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # no published port — only the internal network needs it
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Go engines ────────────────────────────────────────────────────────────
+  cascade-engine:
+    build: { context: ., dockerfile: services/cascade-engine/Dockerfile }
+    restart: unless-stopped
+    environment:
+      PORT: "8090"
+      LEARN_ENGINE_URL: http://learn-engine:8093
+      INSIGHT_ENGINE_URL: http://insight-engine:8097
+    expose: ["8090"]
+    ports: ["${CASCADE_ENGINE_PORT:-8090}:8090"]
+    depends_on: [learn-engine, insight-engine]
+
+  constraint-engine:
+    build: { context: ., dockerfile: services/constraint-engine/Dockerfile }
+    restart: unless-stopped
+    environment:
+      PORT: "8094"
+      LEARN_ENGINE_URL: http://learn-engine:8093
+    expose: ["8094"]
+    ports: ["${CONSTRAINT_ENGINE_PORT:-8094}:8094"]
+    depends_on: [learn-engine]
+
+  # ── Python services ───────────────────────────────────────────────────────
+  auth:
+    build: { context: ., dockerfile: services/auth/Dockerfile }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env.prod}
+      JWT_EXPIRY: ${JWT_EXPIRY:-24h}
+    ports: ["${AUTH_PORT:-8081}:8081"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  user:
+    build: { context: ., dockerfile: services/user/Dockerfile }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    ports: ["${USER_PORT:-8082}:8082"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  learn-engine:
+    build: { context: ., dockerfile: services/learn-engine/Dockerfile }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    ports: ["${LEARN_ENGINE_PORT:-8093}:8093"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  insight-engine:
+    build: { context: ., dockerfile: services/insight-engine/Dockerfile }
+    restart: unless-stopped
+    environment:
+      CASCADE_ENGINE_URL: http://cascade-engine:8090
+    ports: ["${INSIGHT_ENGINE_PORT:-8097}:8097"]
+
+  refactor-engine:
+    build: { context: ., dockerfile: services/refactor-engine/Dockerfile }
+    restart: unless-stopped
+    volumes:
+      - ./content:/app/content:ro
+    ports: ["${REFACTOR_ENGINE_PORT:-8095}:8095"]
+
+  arena-engine:
+    build: { context: ., dockerfile: services/arena-engine/Dockerfile }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+    ports: ["${ARENA_ENGINE_PORT:-8096}:8096"]
+    depends_on:
+      redis: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  redisdata:

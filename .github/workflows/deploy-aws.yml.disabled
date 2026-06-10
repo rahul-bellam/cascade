@@ -1,0 +1,72 @@
+# SCALE-UP TARGET — DISABLED until Cascade outgrows a single box.
+# Rename to deploy-aws.yml to enable. Requires AWS account + these repo secrets:
+#   AWS_ACCOUNT, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+# See docs/deployment-strategy.md "Phase 3 — scale up" before enabling.
+
+name: Deploy (AWS / k8s)
+
+on:
+  workflow_dispatch: {}
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT }}.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REPOSITORY: cascade
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - cascade-engine
+          - constraint-engine
+          - learn-engine
+          - insight-engine
+          - arena-engine
+          - refactor-engine
+          - auth
+          - user
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - name: Build & push ${{ matrix.service }}
+        run: |
+          # Dockerfiles need the repo root as context (they COPY content/).
+          IMG=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}/${{ matrix.service }}
+          docker build -f services/${{ matrix.service }}/Dockerfile -t $IMG:${{ github.sha }} .
+          docker push $IMG:${{ github.sha }}
+
+  deploy-k8s:
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v4
+      - name: Roll out new images
+        run: |
+          REG=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}
+          for s in cascade-engine constraint-engine learn-engine insight-engine \
+                   arena-engine refactor-engine auth user; do
+            kubectl set image deployment/$s $s=$REG/$s:${{ github.sha }} -n cascade
+          done
+          kubectl rollout status deployment/cascade-engine -n cascade --timeout=120s
+
+  terraform-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.7 }
+      - run: terraform init -backend=false
+        working-directory: terraform
+      - run: terraform fmt -check
+        working-directory: terraform
+      - run: terraform validate
+        working-directory: terraform

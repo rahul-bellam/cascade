@@ -25,6 +25,7 @@ export const learnApi = {
 };
 
 export const cascadeApi = {
+  archetypes: () => fetch(`${CASCADE}/archetypes`).then(j<any>),
   graph: (archetype: string) => fetch(`${CASCADE}/cascade/graph/${archetype}`).then(j<any>),
   start: (archetype: string, userId: string) =>
     fetch(`${CASCADE}/cascade/start`, {
@@ -39,6 +40,11 @@ export const cascadeApi = {
     }).then(j<any>),
   hint: (sid: string, level: number) =>
     fetch(`${CASCADE}/cascade/${sid}/hint?level=${level}`).then(j<any>),
+  insight: (sid: string, diagnosis: string, tradeoffs: string, foresight: string) =>
+    fetch(`${CASCADE}/cascade/${sid}/insight`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ diagnosis, tradeoffs, foresight }),
+    }).then(j<any>),
   summary: (sid: string) => fetch(`${CASCADE}/cascade/${sid}/summary`).then(j<any>),
   dag: (sid: string) => fetch(`${CASCADE}/cascade/${sid}/dag`).then(j<any>),
 };
@@ -56,6 +62,7 @@ export const leagueApi = {
     fetch(`${LEAGUE}/standings?season_id=${encodeURIComponent(seasonId)}&division=${encodeURIComponent(division)}`).then(j<any>),
 };
 export const refactorApi = {
+  codebases: () => fetch(`${REFACTOR}/refactor/codebases`).then(j<any>),
   start: (codebase: string, userId: string) =>
     fetch(`${REFACTOR}/refactor/start`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

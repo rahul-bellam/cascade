@@ -1,0 +1,212 @@
+# URL Shortener — Cascade DAG
+# A failure chain for a TinyURL-style service: ID generation, read scaling,
+# cache behaviour, hot keys, and abuse. Grounded in real incidents
+# (Bitly hot-key storms, cache stampede on viral links, base62 collisions).
+
+archetype: url_shortener
+name: "URL Shortener"
+slug: url-shortener
+version: 1.0
+
+lessons:
+  - caching-redis
+  - consistent-hashing
+  - bloom-filter
+
+start: origin
+
+nodes:
+  - id: origin
+    type: starting_state
+    description: "Single Flask server. Random 6-char code, in-memory dict, one SQLite file. Works at 10 req/min."
+    expected_failures:
+      - "What happens to short links when the process restarts?"
+      - "How are codes generated — can they collide?"
+      - "What happens when one link goes viral?"
+    transitions:
+      - to: no_persistence
+        weight: 1.0
+
+  - id: no_persistence
+    type: issue
+    severity: high
+    category: data_loss
+    description: "In-memory dict means every short link vanishes on deploy or crash. Users hit dead links."
+    concern_ids: [21, 24]
+    expected_reasoning:
+      diagnosis: ["state only in memory", "links lost on restart", "no durable store"]
+      tradeoffs: ["db write per shorten", "read latency"]
+      foresight: ["read load grows with traffic", "id generation can collide"]
+    solution_signature:
+      required: [durable_store]
+      preferred: database_with_index
+    hints:
+      - {level: 1, cost: 10, text: "Where do the code->URL mappings actually live?"}
+      - {level: 2, cost: 25, text: "Persist mappings to a database (or Redis with no eviction)."}
+      - {level: 3, cost: 50, text: "Store mappings in a database keyed by short code, with an index for O(1) lookup."}
+    transitions:
+      - {to: id_collision, condition: "fix_contains('random') AND NOT fix_contains('counter') AND NOT fix_contains('unique')", weight: 0.4}
+      - {to: read_overload, condition: "fix_contains('database') OR fix_contains('db') OR fix_contains('postgres') OR fix_contains('sql')", weight: 0.5}
+      - {to: terminal_fail, condition: "fix_empty()", weight: 0.1}
+
+  - id: id_collision
+    type: issue
+    severity: high
+    category: consistency
+    description: "Random 6-char codes start colliding at scale — new short links silently overwrite old ones."
+    concern_ids: [44]
+    expected_reasoning:
+      diagnosis: ["random code collisions", "birthday paradox", "overwrites existing mapping"]
+      tradeoffs: ["counter is a hotspot", "coordination cost"]
+      foresight: ["read load still grows", "counter becomes contention point"]
+    solution_signature:
+      required: [collision_free_ids]
+      preferred: counter_or_hash
+    hints:
+      - {level: 1, cost: 10, text: "Two different URLs just got the same code. Why?"}
+      - {level: 2, cost: 25, text: "Generate codes from a unique source, not pure randomness."}
+      - {level: 3, cost: 50, text: "Use a monotonic counter (base62-encoded) or a hash with a uniqueness check."}
+    transitions:
+      - {to: read_overload, condition: "fix_contains('counter') OR fix_contains('hash') OR fix_contains('unique') OR fix_contains('base62')", weight: 0.7}
+      - {to: counter_hotspot, condition: "fix_contains('counter') AND fix_contains('single')", weight: 0.3}
+
+  - id: read_overload
+    type: issue
+    severity: high
+    category: performance
+    description: "99% of traffic is redirects. Every redirect hits the database. At 10k rps the DB is saturated and p99 spikes."
+    concern_ids: [21, 41]
+    expected_reasoning:
+      diagnosis: ["read heavy workload", "every redirect hits db", "no cache"]
+      tradeoffs: ["cache invalidation", "stale entries", "memory cost"]
+      foresight: ["cache stampede on cold/viral keys", "one hot link overwhelms a shard"]
+    solution_signature:
+      required: [read_cache]
+      preferred: redis_cache_aside
+    hints:
+      - {level: 1, cost: 10, text: "Which operation dominates — and does it really need the DB every time?"}
+      - {level: 2, cost: 25, text: "Cache the hot code->URL mappings in memory."}
+      - {level: 3, cost: 50, text: "Add Redis cache-aside in front of the DB. See your Toolkit for cache_with_redis."}
+    transitions:
+      - {to: cache_stampede, condition: "fix_contains('cache') AND NOT fix_contains('lock') AND NOT fix_contains('ttl')", weight: 0.45}
+      - {to: hot_key, condition: "fix_contains('cache') AND fix_contains('viral')", weight: 0.2}
+      - {to: cdn_needed, condition: "fix_contains('cdn') OR fix_contains('edge')", weight: 0.35}
+
+  - id: cache_stampede
+    type: issue
+    severity: high
+    category: availability
+    description: "A popular link's cache entry expires. 50k concurrent redirects all miss and hammer the DB at once. It falls over."
+    concern_ids: [22, 26]
+    expected_reasoning:
+      diagnosis: ["thundering herd on expiry", "simultaneous cache misses", "db overwhelmed"]
+      tradeoffs: ["slightly stale data", "lock contention"]
+      foresight: ["single hot key still concentrates load", "cost of large cache"]
+    solution_signature:
+      required: [stampede_protection]
+      preferred: lock_or_jitter
+    hints:
+      - {level: 1, cost: 10, text: "What happens at the exact moment a hot key expires?"}
+      - {level: 2, cost: 25, text: "Stop every request from rebuilding the cache simultaneously."}
+      - {level: 3, cost: 50, text: "Add a per-key lock (single-flight) or randomized TTL jitter + early recompute."}
+    transitions:
+      - {to: hot_key, condition: "fix_contains('lock') OR fix_contains('jitter') OR fix_contains('single') OR fix_contains('ttl')", weight: 0.7}
+      - {to: terminal_stable, condition: "fix_contains('single-flight') AND fix_contains('jitter')", weight: 0.3}
+
+  - id: hot_key
+    type: issue
+    severity: medium
+    category: scalability
+    description: "One viral link is 40% of all traffic. Its cache shard / DB node is melting while others sit idle."
+    concern_ids: [31, 60]
+    expected_reasoning:
+      diagnosis: ["hot key skew", "one shard saturated", "uneven load"]
+      tradeoffs: ["replication cost", "consistency of replicas"]
+      foresight: ["origin still hit for cold links", "abuse / malicious links"]
+    solution_signature:
+      required: [hot_key_mitigation]
+      preferred: replicate_or_edge
+    hints:
+      - {level: 1, cost: 10, text: "Why is one node hot while the rest are bored?"}
+      - {level: 2, cost: 25, text: "Spread or push the hottest entries closer to users."}
+      - {level: 3, cost: 50, text: "Replicate hot keys across nodes, or serve them from a CDN/edge cache."}
+    transitions:
+      - {to: cdn_needed, condition: "fix_contains('cdn') OR fix_contains('edge') OR fix_contains('replicate')", weight: 0.6}
+      - {to: abuse, condition: "fix_contains('replicate') AND NOT fix_contains('cdn')", weight: 0.4}
+
+  - id: counter_hotspot
+    type: issue
+    severity: medium
+    category: scalability
+    description: "A single global counter for ID generation is now the write bottleneck — every shorten serializes on it."
+    concern_ids: [60]
+    expected_reasoning:
+      diagnosis: ["single counter contention", "writes serialize", "coordination bottleneck"]
+      tradeoffs: ["non-sequential ids", "small per-node waste"]
+      foresight: ["read path still needs caching"]
+    solution_signature:
+      required: [distributed_id]
+      preferred: id_ranges_or_snowflake
+    hints:
+      - {level: 1, cost: 10, text: "Every write waits on the same counter. What's the fix pattern?"}
+      - {level: 2, cost: 25, text: "Hand out ID ranges per node, or use a distributed ID scheme."}
+      - {level: 3, cost: 50, text: "Use per-node ID ranges (ticket server) or Snowflake-style IDs to remove the single hotspot."}
+    transitions:
+      - {to: read_overload, condition: "fix_contains('range') OR fix_contains('snowflake') OR fix_contains('distributed')", weight: 1.0}
+
+  - id: cdn_needed
+    type: issue
+    severity: low
+    category: cost
+    description: "Redirects are global; users in Asia hit US origin at 300ms. Bandwidth bill is climbing too."
+    concern_ids: [101, 212]
+    expected_reasoning:
+      diagnosis: ["cross-region latency", "origin bandwidth cost", "no edge caching"]
+      tradeoffs: ["cdn cache invalidation lag", "cdn cost"]
+      foresight: ["malicious / abusive links still possible"]
+    solution_signature:
+      required: [edge_delivery]
+      preferred: cdn_redirect_caching
+    hints:
+      - {level: 1, cost: 10, text: "Why do distant users wait 300ms for a redirect?"}
+      - {level: 2, cost: 25, text: "Serve redirects from somewhere near the user."}
+      - {level: 3, cost: 50, text: "Cache 301/302 redirects at a CDN edge with a sane TTL."}
+    transitions:
+      - {to: abuse, condition: "fix_contains('cdn') OR fix_contains('edge')", weight: 0.6}
+      - {to: terminal_stable, condition: "fix_contains('cdn') AND fix_contains('ttl')", weight: 0.4}
+
+  - id: abuse
+    type: issue
+    severity: medium
+    category: security
+    description: "Spammers shorten malware URLs by the million. Your domain lands on blocklists; legit redirects break."
+    concern_ids: [191, 194]
+    expected_reasoning:
+      diagnosis: ["no abuse controls", "open shortener", "reputation damage"]
+      tradeoffs: ["false positives block legit users", "scanning latency"]
+      foresight: ["system is otherwise stable"]
+    solution_signature:
+      required: [abuse_prevention]
+      preferred: rate_limit_and_scan
+    hints:
+      - {level: 1, cost: 10, text: "Anyone can create unlimited links to anything. What could go wrong?"}
+      - {level: 2, cost: 25, text: "Limit creation and check destinations."}
+      - {level: 3, cost: 50, text: "Add per-account rate limiting + a URL reputation/malware scan on shorten."}
+    transitions:
+      - {to: terminal_stable, condition: "fix_contains('rate') OR fix_contains('scan') OR fix_contains('reputation') OR fix_contains('limit')", weight: 0.8}
+      - {to: terminal_stable_costly, condition: "fix_contains('manual') OR fix_contains('review')", weight: 0.2}
+
+  - id: terminal_stable
+    type: terminal
+    outcome: survived
+    description: "Durable store, collision-free IDs, cache-aside with stampede protection, edge delivery, and abuse controls. It scales."
+
+  - id: terminal_stable_costly
+    type: terminal
+    outcome: survived
+    description: "Stable, but you're leaning on manual review and over-provisioning. It works — at a price."
+
+  - id: terminal_fail
+    type: terminal
+    outcome: failed
+    description: "Links still vanish on restart. The simplest thing was the one thing that had to be fixed."

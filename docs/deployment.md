@@ -46,10 +46,13 @@
 
 ## Phase 9 — Content expansion & polish
 
-### Content pipeline (3 archetypes complete)
-- `rate_limiter` ✅ (lessons, constraints, DAG, refactor scenario)
-- `url_shortener` — constraints done; add lessons + DAG
-- `notification_system` — to build
+### Content pipeline (3 archetypes complete across all modes)
+- `rate-limiter` ✅ (lessons, constraint track, DAG, refactor codebase)
+- `url-shortener` ✅ (lessons, constraint track, DAG, refactor codebase)
+- `notification-system` ✅ (lessons, constraint track, DAG, refactor codebase)
+
+> **Deployment strategy:** for the *how/where to host* decision (bootstrap → scale-up,
+> Vercel + single box, AWS as the dormant target), see [`deployment-strategy.md`](./deployment-strategy.md).
 
 ### Polish pass
 - [ ] Helpful error messages; loading/empty states

@@ -1,0 +1,72 @@
+slug: message-queues
+title: "Message Queue (basic)"
+prerequisites: []
+estimated_minutes: 15
+order_index: 5
+toolkit_key: message_queue
+
+concept:
+  - type: text
+    body: >
+      A message queue decouples producers from consumers. Producers enqueue work
+      and return immediately; consumers process at their own pace. This gets slow
+      work (sending email, transcoding) off the request path and absorbs spikes.
+  - type: text
+    body: >
+      The core contract: publish(msg) appends to a topic; subscribe()/consume()
+      pulls the next message in FIFO order. Real brokers add durability, acks, and
+      partitions — but the mental model starts here.
+  - type: code_block
+    language: python
+    code: |
+      queue = []
+      def publish(msg): queue.append(msg)
+      def consume():    return queue.pop(0) if queue else None
+
+snippet:
+  prompt: |
+    Implement a Queue class with FIFO semantics:
+      publish(self, msg)        # enqueue
+      consume(self) -> msg|None # dequeue oldest, or None if empty
+      size(self) -> int         # number of pending messages
+    Messages must come out in the order they went in.
+  starter_code: |
+    class Queue:
+        def __init__(self):
+            # Your code here
+            pass
+
+        def publish(self, msg):
+            # Your code here
+            pass
+
+        def consume(self):
+            # Your code here
+            pass
+
+        def size(self):
+            # Your code here
+            pass
+  test_cases:
+    - name: "FIFO order"
+      setup: "q = Queue()\nfor m in ['a','b','c']: q.publish(m)"
+      call: "[q.consume(), q.consume(), q.consume()]"
+      expected: "['a', 'b', 'c']"
+    - name: "Empty queue returns None"
+      setup: "q = Queue()"
+      call: "q.consume()"
+      expected: "None"
+    - name: "size reflects pending work"
+      setup: "q = Queue()\nq.publish(1); q.publish(2); q.consume()"
+      call: "q.size()"
+      expected: "1"
+  hints:
+    - level: 1
+      cost: 10
+      text: "A list works: append on publish."
+    - level: 2
+      cost: 25
+      text: "consume() should remove and return the OLDEST item (index 0), not the newest."
+    - level: 3
+      cost: 50
+      text: "Guard consume() against an empty queue — return None instead of raising."

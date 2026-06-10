@@ -1,0 +1,73 @@
+slug: consistent-hashing
+title: "Consistent Hashing"
+prerequisites: [caching-redis]
+estimated_minutes: 15
+order_index: 3
+toolkit_key: consistent_hash
+
+concept:
+  - type: text
+    body: >
+      When you shard data across N nodes with `hash(key) % N`, adding or removing
+      a node remaps almost every key — a catastrophe for a cache or a sharded
+      store. Consistent hashing places nodes on a ring; a key belongs to the first
+      node clockwise from its hash. Adding/removing a node only moves the keys
+      between two adjacent points, not all of them.
+  - type: text
+    body: >
+      This is how URL-shortener storage, distributed caches, and rate-limiter
+      shards stay balanced as the fleet grows. The core operation is: given a key,
+      find which node owns it by walking the sorted ring.
+  - type: code_block
+    language: python
+    code: |
+      # nodes hashed onto a ring; a key maps to the first node clockwise.
+      ring = sorted((hash_fn(n), n) for n in nodes)
+      h = hash_fn(key)
+      for point, node in ring:
+          if h <= point:
+              return node
+      return ring[0][1]  # wrap around
+
+snippet:
+  prompt: |
+    Implement get_node(key, nodes) that maps a key to a node using consistent
+    hashing on a ring. A deterministic `ring_hash(s)` is provided in scope
+    (returns a stable int for any string). Rules:
+      1. Hash each node name onto the ring with ring_hash(node).
+      2. Hash the key with ring_hash(key).
+      3. Return the first node whose ring position is >= the key's hash
+         (walking clockwise); if none, wrap to the smallest position.
+  starter_code: |
+    def get_node(key, nodes):
+        # Your code here
+        pass
+  test_cases:
+    - name: "Maps a key to one of the nodes"
+      setup: "nodes = ['a', 'b', 'c']"
+      call: "get_node('user42', nodes) in nodes"
+      expected: "True"
+    - name: "Deterministic for the same key"
+      setup: "nodes = ['a', 'b', 'c']"
+      call: "get_node('xyz', nodes) == get_node('xyz', nodes)"
+      expected: "True"
+    - name: "Most keys keep their node when one is added (consistency)"
+      setup: |
+        import random
+        base = ['n1','n2','n3','n4']
+        keys = [f'k{i}' for i in range(200)]
+        before = {k: get_node(k, base) for k in keys}
+        after  = {k: get_node(k, base + ['n5']) for k in keys}
+        moved = sum(1 for k in keys if before[k] != after[k])
+      call: "moved < 120"
+      expected: "True"
+  hints:
+    - level: 1
+      cost: 10
+      text: "Build a sorted list of (ring_hash(node), node) — that's your ring."
+    - level: 2
+      cost: 25
+      text: "Hash the key, then find the first ring point >= that hash."
+    - level: 3
+      cost: 50
+      text: "If no point is >= the key's hash, the key wraps around to ring[0]."

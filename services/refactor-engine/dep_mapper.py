@@ -38,9 +38,11 @@ class DependencyMapper:
                 for node in ast.walk(tree):
                     if isinstance(node, ast.FunctionDef):
                         file_info["functions"].append(node.name)
-                        # Check function complexity
-                        stmt_count = len(node.body)
-                        if stmt_count > 50:
+                        # Complexity = total statements anywhere in the function body
+                        # (nested ifs/loops count), plus span in source lines.
+                        stmt_count = sum(1 for _ in ast.walk(node) if isinstance(_, ast.stmt))
+                        span = (getattr(node, "end_lineno", node.lineno) or node.lineno) - node.lineno
+                        if stmt_count > 25 or span > 40:
                             graph["metrics"].setdefault("god_functions", []).append(node.name)
                     
                     elif isinstance(node, ast.Import):

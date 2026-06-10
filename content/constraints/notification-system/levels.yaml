@@ -1,0 +1,45 @@
+archetype: notification_system
+name: "Notification System"
+slug: notification-system
+starting_monolith: "Flask handler sends email/SMS inline during the request. ~10 notifications/min."
+origin_code: notification-system/origin.py
+
+constraints:
+  - level: 1
+    title: "10x users — provider latency tanks the API"
+    impact: "The email provider takes 3s. Every user request now blocks for 3s+; p99 explodes."
+    target_rps: 100
+    latency_sla_ms: 300
+    error_sla_pct: 1.0
+    change_type: async_queue
+    requires_any: [queue, kafka, sqs, async, worker]
+    hints:
+      - "Which metric is spiking, and why is your API waiting on a third party?"
+      - "Get the slow send off the request path."
+      - "Enqueue notifications to a message queue and return immediately; process with workers. See your Toolkit for message_queue."
+
+  - level: 2
+    title: "100x users — a campaign floods the queue"
+    impact: "5M notifications enqueued at once. Consumers can't keep up; delivery lags by hours, memory climbs."
+    target_rps: 1000
+    latency_sla_ms: 500
+    error_sla_pct: 2.0
+    change_type: consumer_scaling
+    requires_any: [partition, "scale out", consumer, worker, backpressure, horizontal]
+    hints:
+      - "The backlog only grows — which side of the queue is too slow?"
+      - "Scale consumers and partition the topic; apply backpressure to producers."
+      - "Partition the topic and autoscale a consumer group."
+
+  - level: 3
+    title: "1000x users — the provider has an outage"
+    impact: "Workers retry the dead provider in lockstep (retry storm), amplifying load; nothing gets delivered."
+    target_rps: 5000
+    latency_sla_ms: 800
+    error_sla_pct: 3.0
+    change_type: resilience
+    requires_any: [backoff, jitter, circuit, fallback, failover, retry]
+    hints:
+      - "Immediate lockstep retries turned a blip into an outage. What two patterns help?"
+      - "Back off exponentially with jitter, and stop hammering a dead provider."
+      - "Add exponential backoff + jitter and a circuit breaker with provider failover. See your Toolkit for retry_with_backoff and circuit_breaker."

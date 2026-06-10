@@ -1,0 +1,73 @@
+slug: retry-backoff
+title: "Retry with Exponential Backoff"
+prerequisites: []
+estimated_minutes: 15
+order_index: 6
+toolkit_key: retry_with_backoff
+
+concept:
+  - type: text
+    body: >
+      Retrying a failed call helps with transient errors — but retrying
+      immediately, in lockstep across many workers, amplifies load and can turn a
+      blip into an outage (a retry storm). Exponential backoff waits longer after
+      each failure: base, base*2, base*4, … capped at a maximum.
+  - type: text
+    body: >
+      Add jitter in production to de-synchronize clients. Here we focus on the
+      deterministic backoff schedule and the retry loop.
+  - type: code_block
+    language: python
+    code: |
+      delay = min(base * (2 ** attempt), cap)
+
+snippet:
+  prompt: |
+    Implement retry_with_backoff(fn, max_retries, base=1, cap=30):
+      - call fn(); if it returns, return its result.
+      - if fn() raises, wait backoff seconds and retry, up to max_retries times.
+      - backoff for attempt n (0-indexed) is min(base * 2**n, cap).
+      - record each wait by calling the provided sleep(seconds) (do NOT use
+        time.sleep). After exhausting retries, re-raise the last exception.
+    A module-level `sleep(seconds)` and list `WAITS` are provided; sleep() appends
+    to WAITS so tests can inspect the schedule.
+  starter_code: |
+    def retry_with_backoff(fn, max_retries, base=1, cap=30):
+        # Your code here
+        pass
+  test_cases:
+    - name: "Returns immediately on success (no waits)"
+      setup: "WAITS.clear()\nr = retry_with_backoff(lambda: 'ok', 5)"
+      call: "(r, WAITS)"
+      expected: "['ok', []]"
+    - name: "Backoff schedule doubles and caps"
+      setup: |
+        WAITS.clear()
+        state = {'n': 0}
+        def flaky():
+            state['n'] += 1
+            if state['n'] < 4: raise ValueError('boom')
+            return 'recovered'
+        r = retry_with_backoff(flaky, 5, base=1, cap=30)
+      call: "(r, WAITS)"
+      expected: "['recovered', [1, 2, 4]]"
+    - name: "Respects the cap"
+      setup: |
+        WAITS.clear()
+        def always_fail(): raise RuntimeError('x')
+        try:
+            retry_with_backoff(always_fail, 6, base=10, cap=30)
+        except RuntimeError:
+            pass
+      call: "WAITS"
+      expected: "[10, 20, 30, 30, 30, 30]"
+  hints:
+    - level: 1
+      cost: 10
+      text: "Loop up to max_retries times; try fn() and return on success."
+    - level: 2
+      cost: 25
+      text: "On failure compute min(base * 2**attempt, cap) and call sleep() with it before the next try."
+    - level: 3
+      cost: 50
+      text: "Track attempt index; after the last allowed retry, re-raise the caught exception."

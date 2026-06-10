@@ -69,24 +69,24 @@ export function ArenaDuel({ userId }: { userId: string }) {
 
   if (phase === 'matchmaking') {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[#F0FDFA] text-[#134E4A] font-['JetBrains_Mono',monospace]">
+      <div className="flex flex-col items-center justify-center h-screen bg-bg text-fg ">
         <div className="animate-pulse flex items-center gap-3 text-2xl font-bold">
-          <span className="text-[#0F766E]">⚔️</span> Looking for Opponent...
+           Looking for Opponent...
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#F0FDFA] text-[#134E4A] font-['JetBrains_Mono',monospace]">
+    <div className="flex flex-col h-screen bg-bg text-fg ">
       
       {/* Header */}
-      <header className="flex-none px-6 py-4 border-b border-[#99F6E4] bg-[#FFFFFF] flex justify-between items-center shadow z-10">
+      <header className="flex-none px-6 py-4 border-b border-border bg-surface flex justify-between items-center shadow z-10">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <span className="text-[#0369A1]">⚡</span> Arena Duel
+            <span className="text-accent-700">⚡</span> Arena Duel
           </h1>
-          <span className="text-xs bg-[#E8F0F3] px-3 py-1 rounded text-[#134E4A] border border-[#99F6E4] uppercase font-bold">
+          <span className="text-xs bg-surface-2 px-3 py-1 rounded text-fg border border-border uppercase font-bold">
             Phase: {phase}
           </span>
         </div>
@@ -100,13 +100,13 @@ export function ArenaDuel({ userId }: { userId: string }) {
       <main className="flex-1 flex overflow-hidden">
         
         {/* Player's side (Code Editor) */}
-        <div className="flex-1 flex flex-col border-r border-[#99F6E4] bg-[#FFFFFF]">
-          <div className="flex-none px-4 py-2 border-b border-[#99F6E4] bg-[#F0FDFA] text-xs font-bold flex justify-between items-center">
-            <span className="text-[#0F766E]">Your Design</span>
+        <div className="flex-1 flex flex-col border-r border-border bg-surface">
+          <div className="flex-none px-4 py-2 border-b border-border bg-bg text-xs font-bold flex justify-between items-center">
+            <span className="text-accent-700">Your Design</span>
             <button 
               onClick={submitCode}
               disabled={phase !== 'code' && phase !== 'design'}
-              className="px-4 py-1.5 bg-[#0369A1] hover:bg-[#0369A1]/90 text-[#FFFFFF] rounded font-bold transition-colors disabled:opacity-50"
+              className="px-4 py-1.5 bg-accent-600 hover:bg-accent-600/90 text-white rounded font-bold transition-colors disabled:opacity-50"
             >
               Commit Design
             </button>
@@ -128,11 +128,11 @@ export function ArenaDuel({ userId }: { userId: string }) {
         </div>
 
         {/* Opponent & Simulation side */}
-        <div className="w-80 flex-none bg-[#F0FDFA] flex flex-col relative border-l border-[#99F6E4]">
+        <div className="w-80 flex-none bg-bg flex flex-col relative border-l border-border">
           
-          <div className="p-4 border-b border-[#99F6E4] bg-[#FFFFFF]">
-            <h2 className="text-xs uppercase tracking-widest text-[#0F766E] font-bold mb-2">Opponent Status</h2>
-            <div className={`p-3 rounded border text-sm font-bold flex items-center gap-2 ${opponentProgress === 'submitted' ? 'bg-[#DC2626]/10 border-[#DC2626] text-[#DC2626]' : 'bg-[#14B8A6]/10 border-[#14B8A6] text-[#0F766E]'}`}>
+          <div className="p-4 border-b border-border bg-surface">
+            <h2 className="text-xs uppercase tracking-widest text-accent-700 font-bold mb-2">Opponent Status</h2>
+            <div className={`p-3 rounded border text-sm font-bold flex items-center gap-2 ${opponentProgress === 'submitted' ? 'bg-danger/10 border-danger text-danger' : 'bg-accent-100 border-accent-300 text-accent-700'}`}>
               {opponentProgress === 'submitted' ? '✅ Submitted' : '⏳ Coding...'}
             </div>
           </div>
@@ -140,20 +140,20 @@ export function ArenaDuel({ userId }: { userId: string }) {
           <div className="flex-1 p-4 flex flex-col gap-4 overflow-y-auto">
             {phase === 'simulation' || phase === 'scoring' || phase === 'complete' ? (
               <div className="space-y-4">
-                <h2 className="text-xs uppercase tracking-widest text-[#0F766E] font-bold">Live Telemetry</h2>
+                <h2 className="text-xs uppercase tracking-widest text-accent-700 font-bold">Live Telemetry</h2>
                 {metrics ? (
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-[#FFFFFF] p-3 rounded border border-[#99F6E4] shadow-sm">
-                      <div className="text-[10px] uppercase text-[#14B8A6]">p50 Latency</div>
+                    <div className="bg-surface p-3 rounded border border-border shadow-sm">
+                      <div className="text-[10px] uppercase text-muted">p50 Latency</div>
                       <div className="text-xl font-bold">{metrics.p50}ms</div>
                     </div>
-                    <div className="bg-[#FFFFFF] p-3 rounded border border-[#99F6E4] shadow-sm">
-                      <div className="text-[10px] uppercase text-[#14B8A6]">p99 Latency</div>
+                    <div className="bg-surface p-3 rounded border border-border shadow-sm">
+                      <div className="text-[10px] uppercase text-muted">p99 Latency</div>
                       <div className="text-xl font-bold">{metrics.p99}ms</div>
                     </div>
-                    <div className="bg-[#FFFFFF] p-3 rounded border border-[#99F6E4] shadow-sm col-span-2">
-                      <div className="text-[10px] uppercase text-[#0369A1]">Throughput</div>
-                      <div className="text-xl font-bold text-[#0369A1]">{metrics.rps} req/s</div>
+                    <div className="bg-surface p-3 rounded border border-border shadow-sm col-span-2">
+                      <div className="text-[10px] uppercase text-accent-700">Throughput</div>
+                      <div className="text-xl font-bold text-accent-700">{metrics.rps} req/s</div>
                     </div>
                   </div>
                 ) : (
@@ -169,14 +169,14 @@ export function ArenaDuel({ userId }: { userId: string }) {
           
           {/* Scores Overlay */}
           {scores && (
-            <div className="absolute inset-0 bg-[#FFFFFF]/90 backdrop-blur border-t border-[#99F6E4] p-6 flex flex-col justify-center shadow-[0_-10px_30px_rgba(15,118,110,0.1)] z-20">
-              <h2 className="text-2xl font-bold text-center mb-6 text-[#0369A1]">🎉 Results</h2>
+            <div className="absolute inset-0 bg-surface/90 backdrop-blur border-t border-border p-6 flex flex-col justify-center shadow-lift z-20">
+              <h2 className="text-2xl font-bold text-center mb-6 text-accent-700">🎉 Results</h2>
               <div className="space-y-4">
-                <div className="bg-[#0F766E] text-[#FFFFFF] p-4 rounded shadow">
+                <div className="bg-accent-600 text-white p-4 rounded shadow">
                   <div className="text-xs uppercase opacity-80">Your Score</div>
                   <div className="text-3xl font-bold">{scores[userId]}</div>
                 </div>
-                <div className="bg-[#134E4A] text-[#FFFFFF] p-4 rounded shadow opacity-80">
+                <div className="bg-surface-2 text-white p-4 rounded shadow opacity-80">
                   <div className="text-xs uppercase opacity-80">Opponent Score</div>
                   <div className="text-2xl font-bold">
                     {Object.entries(scores).find(([k]) => k !== userId)?.[1] as number}
