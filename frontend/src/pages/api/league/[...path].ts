@@ -5,7 +5,7 @@ const TARGET = process.env.ARENA_ENGINE_URL || 'http://localhost:8096';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const parts = ([] as string[]).concat((req.query.path as string[]) || []);
   const qs = req.url?.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
-  const url = `${TARGET}/${parts.join('/')}${qs}`;
+  const url = `${TARGET}/league/${parts.join('/')}${qs}`;
   try {
     const upstream = await fetch(url, {
       method: req.method,

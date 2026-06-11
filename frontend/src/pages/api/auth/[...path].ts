@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-const TARGET = process.env.AUTH_SERVICE_URL || 'http://localhost:8097';
+const TARGET = process.env.AUTH_SERVICE_URL || 'http://localhost:8081';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const parts = ([] as string[]).concat((req.query.path as string[]) || []);
