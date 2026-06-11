@@ -21,6 +21,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+class ArenaSubmitRequest(BaseModel):
+    duel_id: str
+    code: str
+
+
+class ArenaSubmitResponse(BaseModel):
+    status: str
+    duel_id: str
+    received: bool
+
 class Matchmaker:
     def __init__(self):
         self.queue = []  # tuple of (user_id, ws)
@@ -28,7 +39,7 @@ class Matchmaker:
     def join_queue(self, user_id: str, ws: WebSocket):
         self.queue.append((user_id, ws))
 
-    def get_match(self):
+    def get_match(self) -> Optional[tuple]:
         if len(self.queue) >= 2:
             p1 = self.queue.pop(0)
             p2 = self.queue.pop(0)
@@ -43,6 +54,13 @@ PHASE_DURATIONS = {
     "code": 8,
     "simulation": 3,
 }
+
+PHASE_JITTER = 0.15  # ±15% random jitter per phase for realism
+
+
+def jittered_duration(phase: str) -> float:
+    base = PHASE_DURATIONS[phase]
+    return round(base * (1.0 + random.uniform(-PHASE_JITTER, PHASE_JITTER)), 1)
 
 class Duel:
     def __init__(self, p1_id: str, p1_ws: WebSocket, p2_id: str, p2_ws: WebSocket):
@@ -85,11 +103,14 @@ class Duel:
 
     async def advance_phase(self):
         self.phase = "design"
-        await self.broadcast({"type": "phase_change", "data": "design", "duration_s": PHASE_DURATIONS["design"]})
-        await asyncio.sleep(PHASE_DURATIONS["design"])
+
+        design_dur = jittered_duration("design")
+        await self.broadcast({"type": "phase_change", "data": "design", "duration_s": design_dur})
+        await asyncio.sleep(design_dur)
 
         self.phase = "code"
-        await self.broadcast({"type": "phase_change", "data": "code", "duration_s": PHASE_DURATIONS["code"]})
+        code_dur = jittered_duration("code")
+        await self.broadcast({"type": "phase_change", "data": "code", "duration_s": code_dur})
 
         await self.wait_for_submissions()
 
@@ -145,6 +166,13 @@ class Duel:
 @app.get("/health")
 def health():
     return {"status": "operational", "service": "arena-engine"}
+
+@app.post("/arena/submit", response_model=ArenaSubmitResponse)
+def arena_submit(req: ArenaSubmitRequest) -> ArenaSubmitResponse:
+    duel = duels.get(req.duel_id)
+    if not duel:
+        return ArenaSubmitResponse(status="error", duel_id=req.duel_id, received=False)
+    return ArenaSubmitResponse(status="ok", duel_id=req.duel_id, received=True)
 
 @app.websocket("/arena/queue")
 async def queue_ws(websocket: WebSocket, user_id: str):

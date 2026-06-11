@@ -2,6 +2,12 @@ import math
 import time
 from typing import Optional
 
+
+def sigmoid(x: float, midpoint: float = 0.5, steepness: float = 8.0) -> float:
+    """S-curve for smooth threshold transitions."""
+    return 1.0 / (1.0 + math.exp(-steepness * (x - midpoint)))
+
+
 class SimulationMetrics:
     p50_latency: float
     p99_latency: float
@@ -29,7 +35,7 @@ class SimulationMetrics:
         }
 
 
-def simulate_duel(p1_fix: str, p2_fix: str, archetype: str = "rate_limiter") -> dict[str, dict]:
+def simulate_duel(p1_fix: str, p2_fix: str, archetype: Optional[str] = "rate_limiter") -> dict[str, dict]:
     p1 = _simulate_player(p1_fix)
     p2 = _simulate_player(p2_fix)
     return {p1_fix[:8]: p1.dict(), p2_fix[:8]: p2.dict()}
@@ -70,18 +76,19 @@ def _simulate_player(fix_text: str) -> SimulationMetrics:
 
     cap_score = min(score, 100)
 
-    base_latency = 40.0
     improvement = cap_score / 100.0
-    p50 = max(5, base_latency * (1.0 - improvement * 0.8))
-    p99 = p50 * (2.0 + (1.0 - improvement) * 3.0)
+
+    # Latency: sigmoid-based improvement with diminishing returns floor
+    p50 = 5.0 + 35.0 * (1.0 - sigmoid(improvement, midpoint=0.4))
+    p99 = p50 * (2.0 + 3.0 * math.exp(-3.0 * improvement))
 
     target_rps = 1000
     capacity = target_rps * (0.3 + improvement * 0.7)
     throughput = int(capacity)
 
     error_rate = max(0.0, 0.15 * (1.0 - improvement * 0.95))
-    cpu = max(10, 85 * (1.0 - improvement * 0.7))
-    cost = 100 + (capacity / 100) * 20 + (p99 / 10) * 5
+    cpu = max(10, 85.0 * (1.0 - improvement * 0.7))
+    cost = 100.0 + 20.0 * math.exp(improvement * 2.5) + (p99 / 10.0) * 5.0
 
     return SimulationMetrics(
         p50=round(p50, 1),

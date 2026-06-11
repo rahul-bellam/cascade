@@ -198,6 +198,8 @@ def score_insight_endpoint(req: InsightRequest) -> InsightResponse:
 @app.get("/profile/{user_id}/mastery")
 def get_mastery(user_id: str):
     entries = [e for e in fetch_telemetry() if e.get("user_id") == user_id]
+    if not entries:
+        raise HTTPException(status_code=404, detail=f"No telemetry for user '{user_id}'")
     return {"user_id": user_id, "concern_mastery": compute_mastery(entries)}
 
 @app.get("/profile/{user_id}/biases")

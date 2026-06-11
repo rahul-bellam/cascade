@@ -32,6 +32,9 @@ class RequirementInjector:
         modules = dep_graph.get("files", {})
         coupling = dep_graph.get("metrics", {}).get("avg_coupling", 100)
         imports = dep_graph.get("imports", [])
+
+        # Add small random noise to prevent identical scores from different analyses
+        noise = random.uniform(-2.0, 2.0)
         n_modules = len(modules)
         n_imports = len(imports)
         god_functions = dep_graph.get("metrics", {}).get("god_functions", [])
@@ -43,8 +46,8 @@ class RequirementInjector:
         global_state_penalty = len(global_state) * 10
         import_penalty = max(0, (n_imports - n_modules * 2)) * 5
 
-        score = coupling_score + module_score - god_func_penalty - global_state_penalty - import_penalty
-        score = max(0, min(100, score))
+        score = coupling_score + module_score - god_func_penalty - global_state_penalty - import_penalty + noise
+        score = max(0, min(100, int(score)))
 
         if score >= 70:
             verdict = "Easily accommodated — clean architecture"
@@ -54,7 +57,7 @@ class RequirementInjector:
             verdict = "Poorly accommodated — still spaghetti"
 
         return {
-            "score": round(score),
+            "score": score,
             "verdict": verdict,
             "details": {
                 "n_modules": n_modules,

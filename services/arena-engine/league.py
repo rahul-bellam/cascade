@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Optional
 import uuid
 import time
 from datetime import datetime, timedelta
@@ -8,10 +8,10 @@ from datetime import datetime, timedelta
 router = APIRouter(prefix="/league")
 
 # In-memory stores (Simulating Redis/PostgreSQL for Phase 6 MVP)
-seasons: Dict[str, dict] = {}
-users: Dict[str, dict] = {} 
+seasons: dict[str, dict] = {}
+users: dict[str, dict] = {} 
 # season_id -> division -> list of user entries
-standings: Dict[str, Dict[str, Dict[str, dict]]] = {}
+standings: dict[str, dict[str, dict[str, dict]]] = {}
 
 DIVISIONS = ["Bronze", "Silver", "Gold"]
 
@@ -109,6 +109,10 @@ def submit_match_result(req: MatchResultReq):
         "loser": {"id": req.loser_id, "elo": users[req.loser_id]["elo"], "division": l_new_div, "trend": s_standings[l_new_div][req.loser_id]["trend"]}
     }
 
+@router.get("/seasons/{season_id}")
+def get_season(season_id: str) -> Optional[dict]:
+    return seasons.get(season_id)
+
 @router.get("/standings")
 def get_standings(season_id: str, division: str):
     if season_id not in standings:
@@ -117,7 +121,7 @@ def get_standings(season_id: str, division: str):
         raise HTTPException(status_code=400, detail="Invalid division")
         
     div_standings = standings[season_id][division]
-    sorted_users = sorted(div_standings.values(), key=lambda x: x["points"], reverse=True)
+    sorted_users: List[dict] = sorted(div_standings.values(), key=lambda x: x["points"], reverse=True)
     
     # Add rank and ELO
     result = []

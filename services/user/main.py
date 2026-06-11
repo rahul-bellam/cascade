@@ -147,15 +147,17 @@ def update_consent(req: ConsentRequest, request: Request) -> ConsentResponse:
     return ConsentResponse(user_id=uid, **consent[uid])
 
 @app.post("/api/v1/user/data/export")
-def export_data(request: Request) -> DataExportResponse:
+def export_data(request: Request) -> dict:
     user = get_current_user(request)
     uid = user["id"]
-    return DataExportResponse(
-        user_id=uid,
-        profile=profiles.get(uid),
-        progress=progress.get(uid, []),
-        consent=consent.get(uid),
-    )
+    export_id = str(uuid.uuid4())
+    return {
+        "export_id": export_id,
+        "user_id": uid,
+        "profile": profiles.get(uid),
+        "progress": progress.get(uid, []),
+        "consent": consent.get(uid),
+    }
 
 @app.delete("/api/v1/user/data")
 def delete_data(request: Request):

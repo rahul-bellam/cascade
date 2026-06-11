@@ -9,8 +9,9 @@ class DependencyMapper:
             "imports": [],
             "functions": [],
             "global_state": [],
-            "metrics": {}
+            "metrics": defaultdict(list),
         }
+        god_functions: list[str] = graph["metrics"]["god_functions"]
         
         for dirpath, _, filenames in os.walk(root_path):
             for fn in filenames:
@@ -43,7 +44,7 @@ class DependencyMapper:
                         stmt_count = sum(1 for _ in ast.walk(node) if isinstance(_, ast.stmt))
                         span = (getattr(node, "end_lineno", node.lineno) or node.lineno) - node.lineno
                         if stmt_count > 25 or span > 40:
-                            graph["metrics"].setdefault("god_functions", []).append(node.name)
+                            god_functions.append(node.name)
                     
                     elif isinstance(node, ast.Import):
                         for alias in node.names:
@@ -76,9 +77,7 @@ class DependencyMapper:
         graph["metrics"]["total_functions"] = total_functions
         graph["metrics"]["total_global_state"] = len(graph["global_state"])
         graph["metrics"]["avg_coupling"] = round(avg_coupling, 2)
-        graph["metrics"]["god_functions"] = list(set(
-            graph["metrics"].get("god_functions", [])
-        ))
+        graph["metrics"]["god_functions"] = list(set(god_functions))
         
         return graph
 
