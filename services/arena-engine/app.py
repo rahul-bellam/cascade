@@ -62,18 +62,18 @@ class Duel:
     async def broadcast(self, message: dict):
         try:
             await self.p1_ws.send_json(message)
-        except:
+        except Exception:
             pass
         try:
             await self.p2_ws.send_json(message)
-        except:
+        except Exception:
             pass
 
     async def send_to_opponent(self, sender_id: str, message: dict):
         ws = self.p2_ws if sender_id == self.p1_id else self.p1_ws
         try:
             await ws.send_json(message)
-        except:
+        except Exception:
             pass
 
     async def wait_for_submissions(self):
