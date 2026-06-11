@@ -8,7 +8,7 @@ resource "aws_vpc" "cascade" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
-  tags = { Name = "cascade-vpc" }
+  tags                 = { Name = "cascade-vpc" }
 }
 
 resource "aws_subnet" "public" {
@@ -17,7 +17,7 @@ resource "aws_subnet" "public" {
   cidr_block              = "10.0.${count.index}.0/24"
   availability_zone       = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = true
-  tags = { Name = "cascade-public-${count.index}" }
+  tags                    = { Name = "cascade-public-${count.index}" }
 }
 
 resource "aws_subnet" "private" {
@@ -25,7 +25,7 @@ resource "aws_subnet" "private" {
   vpc_id            = aws_vpc.cascade.id
   cidr_block        = "10.0.${count.index + 10}.0/24"
   availability_zone = data.aws_availability_zones.available.names[count.index]
-  tags = { Name = "cascade-private-${count.index}" }
+  tags              = { Name = "cascade-private-${count.index}" }
 }
 
 resource "aws_internet_gateway" "cascade" {
@@ -56,7 +56,7 @@ resource "aws_route_table" "public" {
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.cascade.id
   route {
-    cidr_block = "0.0.0.0/0"
+    cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.cascade.id
   }
   tags = { Name = "cascade-private-rt" }
@@ -81,15 +81,15 @@ resource "aws_security_group" "alb" {
   description = "Allow HTTP/HTTPS inbound to ALB"
   vpc_id      = aws_vpc.cascade.id
   ingress {
-    from_port = 443
-    to_port   = 443
-    protocol  = "tcp"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
   ingress {
-    from_port = 80
-    to_port   = 80
-    protocol  = "tcp"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
   egress {
@@ -106,9 +106,9 @@ resource "aws_security_group" "ecs" {
   description = "Allow traffic from ALB to ECS tasks"
   vpc_id      = aws_vpc.cascade.id
   ingress {
-    from_port = 0
-    to_port   = 65535
-    protocol  = "tcp"
+    from_port       = 0
+    to_port         = 65535
+    protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
   egress {
@@ -149,18 +149,18 @@ resource "aws_security_group" "redis" {
 # ── RDS Aurora (PostgreSQL) ─────────────────────────────────────────────────
 
 resource "aws_rds_cluster" "cascade" {
-  cluster_identifier  = "cascade-aurora"
-  engine              = "aurora-postgresql"
-  engine_version      = "16.1"
-  database_name       = "cascade"
-  master_username     = var.db_username
-  master_password     = var.db_password
-  port                = 5432
-  db_subnet_group_name = aws_db_subnet_group.cascade.name
-  vpc_security_group_ids = [aws_security_group.rds.id]
-  backup_retention_period = 30
-  preferred_backup_window = "03:00-04:00"
-  skip_final_snapshot     = false
+  cluster_identifier        = "cascade-aurora"
+  engine                    = "aurora-postgresql"
+  engine_version            = "16.1"
+  database_name             = "cascade"
+  master_username           = var.db_username
+  master_password           = var.db_password
+  port                      = 5432
+  db_subnet_group_name      = aws_db_subnet_group.cascade.name
+  vpc_security_group_ids    = [aws_security_group.rds.id]
+  backup_retention_period   = 30
+  preferred_backup_window   = "03:00-04:00"
+  skip_final_snapshot       = false
   final_snapshot_identifier = "cascade-aurora-final-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
 
   serverlessv2_scaling_configuration {
@@ -175,7 +175,7 @@ resource "aws_rds_cluster_instance" "cascade" {
   instance_class     = "db.serverless"
   engine             = aws_rds_cluster.cascade.engine
   engine_version     = aws_rds_cluster.cascade.engine_version
-  tags = { Name = "cascade-aurora-instance-${count.index}" }
+  tags               = { Name = "cascade-aurora-instance-${count.index}" }
 }
 
 resource "aws_db_subnet_group" "cascade" {
@@ -187,19 +187,19 @@ resource "aws_db_subnet_group" "cascade" {
 # ── ElastiCache Redis ────────────────────────────────────────────────────────
 
 resource "aws_elasticache_replication_group" "cascade" {
-  replication_group_id          = "cascade-redis"
-  replication_group_description = "Cascade Redis cluster"
-  engine                        = "redis"
-  engine_version                = "7.1"
-  node_type                     = "cache.r6g.large"
-  num_cache_clusters            = 3
-  port                          = 6379
-  parameter_group_name          = "default.redis7"
-  subnet_group_name             = aws_elasticache_subnet_group.cascade.name
-  security_group_ids            = [aws_security_group.redis.id]
-  automatic_failover_enabled    = true
-  multi_az_enabled              = true
-  tags = { Name = "cascade-redis" }
+  replication_group_id       = "cascade-redis"
+  description                = "Cascade Redis cluster"
+  engine                     = "redis"
+  engine_version             = "7.1"
+  node_type                  = "cache.r6g.large"
+  num_cache_clusters         = 3
+  port                       = 6379
+  parameter_group_name       = "default.redis7"
+  subnet_group_name          = aws_elasticache_subnet_group.cascade.name
+  security_group_ids         = [aws_security_group.redis.id]
+  automatic_failover_enabled = true
+  multi_az_enabled           = true
+  tags                       = { Name = "cascade-redis" }
 }
 
 resource "aws_elasticache_subnet_group" "cascade" {
@@ -242,7 +242,7 @@ resource "aws_ecs_cluster" "cascade" {
 }
 
 resource "aws_ecs_cluster_capacity_providers" "cascade" {
-  cluster_name = aws_ecs_cluster.cascade.name
+  cluster_name       = aws_ecs_cluster.cascade.name
   capacity_providers = ["FARGATE", "FARGATE_SPOT"]
   default_capacity_provider_strategy {
     capacity_provider = "FARGATE"
@@ -258,7 +258,7 @@ resource "aws_lb" "cascade" {
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id
-  tags = { Name = "cascade-alb" }
+  tags               = { Name = "cascade-alb" }
 }
 
 resource "aws_lb_target_group" "api" {
@@ -312,7 +312,7 @@ resource "aws_cloudfront_distribution" "cascade" {
     cached_methods         = ["GET", "HEAD"]
     forwarded_values {
       query_string = true
-      cookies      { forward = "all" }
+      cookies { forward = "all" }
     }
     min_ttl     = 0
     default_ttl = 60

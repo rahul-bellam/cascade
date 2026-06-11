@@ -1,0 +1,69 @@
+slug: cd-rollout
+title: "Continuous Delivery — Rolling Deploys"
+prerequisites: [ci-pipeline]
+estimated_minutes: 15
+order_index: 24
+toolkit_key: rolling_deploy
+
+concept:
+  - type: text
+    body: >
+      Continuous Delivery takes the image CI built and ships it to production
+      automatically (or one click away). The naive way — stop all old instances, start
+      all new ones ("recreate") — causes downtime: for a moment, zero instances are
+      serving. For anything user-facing that is unacceptable.
+  - type: text
+    body: >
+      A **rolling update** replaces instances a few at a time. With `maxUnavailable`
+      controlling how many can be down at once, you take a small batch offline, bring
+      it back up on the new version, then move to the next batch — so available
+      capacity never drops below `replicas - maxUnavailable`. Combined with a readiness
+      check (don't route traffic to a pod until it reports healthy), this gives
+      zero-downtime deploys. The trade-off: during the rollout, old and new versions
+      run simultaneously, so your change must be backward compatible.
+  - type: code_block
+    language: yaml
+    code: |
+      # k8s Deployment strategy
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 1   # never drop more than 1 pod of capacity
+          maxSurge: 1         # may temporarily run 1 extra pod
+
+snippet:
+  prompt: |
+    Model the capacity dip during a rolling update:
+      rolling_update(n, max_unavailable=1) -> int
+
+    `n` healthy pods run the old version. Update all `n` to the new version, taking at
+    most `max_unavailable` pods down at a time; each batch is brought back up before the
+    next batch is taken down. Return the MINIMUM number of available pods observed at
+    any point during the rollout.
+  starter_code: |
+    def rolling_update(n, max_unavailable=1):
+        # Your code here
+        pass
+  test_cases:
+    - name: "Rolling with max_unavailable=1 keeps n-1 available"
+      setup: ""
+      call: "rolling_update(4, max_unavailable=1)"
+      expected: 3
+    - name: "Bigger batch drops more capacity"
+      setup: ""
+      call: "rolling_update(4, max_unavailable=2)"
+      expected: 2
+    - name: "A single pod must go fully down (effectively a recreate)"
+      setup: ""
+      call: "rolling_update(1, max_unavailable=1)"
+      expected: 0
+  hints:
+    - level: 1
+      cost: 10
+      text: "Available capacity dips while a batch is down and recovers when it comes back up."
+    - level: 2
+      cost: 25
+      text: "The worst case each batch is: available = n - (pods currently down). Track the minimum of that."
+    - level: 3
+      cost: 50
+      text: "Loop updating min(max_unavailable, remaining) pods per batch; the min available is n - batch (the largest batch you take down)."

@@ -1,0 +1,78 @@
+slug: k8s-services
+title: "Kubernetes — Services & Discovery"
+prerequisites: [k8s-pods-replicas]
+estimated_minutes: 15
+order_index: 26
+toolkit_key: service_discovery
+
+concept:
+  - type: text
+    body: >
+      Pods are cattle, not pets: they come and go, get rescheduled to other nodes, and
+      change IP every time. So you can never hardcode a pod IP — by the time you use it,
+      that pod may be gone. This is the service-discovery problem that self-healing
+      creates: the thing you want to talk to keeps moving.
+  - type: text
+    body: >
+      A Kubernetes **Service** is a stable virtual endpoint in front of a changing set
+      of pods. It gets a fixed name and IP that never change, and an endpoint controller
+      keeps its backend list in sync with the healthy pods matching its selector. Traffic
+      to the Service is load-balanced across those healthy endpoints (commonly
+      round-robin). When a pod dies, it's removed from the endpoint set and stops
+      receiving traffic; when reconciliation spawns a replacement, it's added. Callers
+      just use the stable Service name and never think about pod churn.
+  - type: code_block
+    language: yaml
+    code: |
+      apiVersion: v1
+      kind: Service
+      metadata: { name: api }      # stable DNS name: api.default.svc
+      spec:
+        selector: { app: api }     # picks up whichever pods carry this label
+        ports: [{ port: 80, targetPort: 8080 }]
+
+snippet:
+  prompt: |
+    Model a Service load-balancing over healthy endpoints. Implement:
+      __init__(self, endpoints)   # list of pod ids behind the service
+      route(self) -> pod id       # round-robin over current endpoints (None if none)
+      remove(self, ep)            # endpoint controller drops an unhealthy pod
+
+    Successive route() calls cycle through the endpoints in order. After remove(), the
+    dropped pod must never be returned again.
+  starter_code: |
+    class Service:
+        def __init__(self, endpoints):
+            # Your code here
+            pass
+
+        def route(self):
+            # Your code here
+            pass
+
+        def remove(self, ep):
+            # Your code here
+            pass
+  test_cases:
+    - name: "Round-robins across pods"
+      setup: "s = Service(['a','b','c'])"
+      call: "[s.route(), s.route(), s.route(), s.route()]"
+      expected: ["a", "b", "c", "a"]
+    - name: "Removed pod stops receiving traffic"
+      setup: "s = Service(['a','b','c']); s.remove('b')"
+      call: "[s.route(), s.route(), s.route()]"
+      expected: ["a", "c", "a"]
+    - name: "No endpoints -> no route"
+      setup: "s = Service([])"
+      call: "s.route()"
+      expected: null
+  hints:
+    - level: 1
+      cost: 10
+      text: "Keep a rotating index; each route() returns endpoints[index % len] then advances."
+    - level: 2
+      cost: 25
+      text: "If there are no endpoints, return None instead of indexing into an empty list."
+    - level: 3
+      cost: 50
+      text: "remove() filters the endpoint out of the list; reset the index so routing stays in range."

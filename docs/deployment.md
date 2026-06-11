@@ -2,10 +2,21 @@
 
 ## Phase 8 — Production deployment
 
-### Infrastructure (`deploy/`)
-- **`deploy/terraform/`** — AWS: ECS Fargate cluster, Aurora Serverless v2 Postgres, ElastiCache Redis (Multi-AZ).
-- **`deploy/k8s/`** — alternative: Deployment + Service per backend (example: cascade-engine, arena-engine).
-- **`deploy/monitoring/`** — Prometheus + Grafana + Loki; Prometheus scrapes every backend `/health`+metrics.
+### Infrastructure (consolidated)
+- **`terraform/`** — AWS: VPC, ECS Fargate (all 8 services), Aurora Serverless v2 Postgres,
+  ElastiCache Redis (Multi-AZ), ALB, CloudFront, IAM, ECR, Secrets Manager, autoscaling.
+  Verified with `terraform validate` (Success) + `terraform fmt`.
+- **`k8s/`** — alternative to ECS: namespaced Deployment + Service per backend (all 8),
+  `secrets.yaml`, `hpa.yaml` (cascade/constraint/arena), `monitoring.yaml` (in-cluster
+  Prometheus/Grafana). Arena Service uses `sessionAffinity: ClientIP` for WebSocket duels.
+  Validated with kubeconform against k8s 1.29 schemas.
+- **`monitoring/`** — single-box observability (Prometheus + Grafana + Loki via
+  docker-compose) for the bootstrap phase; runs alongside `docker-compose.prod.yml`.
+- **`deploy-box/`** — TLS reverse proxy for the single box: `Caddyfile` (auto-HTTPS,
+  validated) and `nginx.conf` alternative. Subdomain-per-engine to avoid path collisions.
+
+> The old duplicate `deploy/{terraform,k8s,monitoring}` tree was removed; the root
+> `terraform/` + `k8s/` are canonical. See `deployment-strategy.md`.
 
 ### Service topology
 | Service | Lang | Port | Notes |

@@ -1,0 +1,66 @@
+slug: ci-pipeline
+title: "Continuous Integration — Fail Fast"
+prerequisites: [docker-compose]
+estimated_minutes: 12
+order_index: 23
+toolkit_key: ci_fail_fast
+
+concept:
+  - type: text
+    body: >
+      Continuous Integration means every change is automatically built and tested the
+      moment it lands, so broken code is caught in minutes by a machine instead of
+      days later by a teammate (or a customer). The container image is the unit of
+      work: CI builds the same image that will run in production, then runs the test
+      suite against it — guaranteeing what you tested is exactly what ships.
+  - type: text
+    body: >
+      A pipeline is an ordered sequence of stages — typically build, test, lint, maybe
+      security scan. The defining behavior is **fail-fast**: the moment a stage fails,
+      the pipeline stops. There is no point running the test stage if the build didn't
+      compile, and no point deploying if the tests are red. Fail-fast gives the fastest
+      possible feedback and prevents a broken artifact from ever reaching the next step.
+  - type: code_block
+    language: yaml
+    code: |
+      # .github/workflows/ci.yml (shape)
+      jobs:
+        build: { steps: [checkout, docker build] }
+        test:  { needs: [build], steps: [run pytest] }   # only runs if build passed
+        lint:  { needs: [test],  steps: [ruff check] }    # only runs if test passed
+
+snippet:
+  prompt: |
+    Implement a fail-fast pipeline runner:
+      run_pipeline(stages) -> (status, ran)
+
+    `stages` is a list of (name, passed_bool) in order. Run them in order; STOP at the
+    first failing stage. Return ("passed", [...all names]) if every stage passed, or
+    ("failed", [...names that ran, ending with the one that failed]) on first failure.
+  starter_code: |
+    def run_pipeline(stages):
+        # Your code here
+        pass
+  test_cases:
+    - name: "All green -> passed, all stages ran"
+      setup: ""
+      call: "run_pipeline([('build',True),('test',True),('lint',True)])"
+      expected: ["passed", ["build", "test", "lint"]]
+    - name: "Fail-fast stops at the first failure"
+      setup: ""
+      call: "run_pipeline([('build',True),('test',False),('lint',True)])"
+      expected: ["failed", ["build", "test"]]
+    - name: "First stage fails -> nothing after runs"
+      setup: ""
+      call: "run_pipeline([('build',False),('test',True)])"
+      expected: ["failed", ["build"]]
+  hints:
+    - level: 1
+      cost: 10
+      text: "Record each stage name as you run it, before checking whether it passed."
+    - level: 2
+      cost: 25
+      text: "On the first stage whose passed flag is False, return ('failed', ran) immediately."
+    - level: 3
+      cost: 50
+      text: "If you finish the loop without returning, every stage passed: return ('passed', ran)."

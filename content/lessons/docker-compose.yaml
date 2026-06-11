@@ -1,0 +1,69 @@
+slug: docker-compose
+title: "Multi-Container Orchestration with Compose"
+prerequisites: [docker-volumes]
+estimated_minutes: 15
+order_index: 22
+toolkit_key: compose_dependency_order
+
+concept:
+  - type: text
+    body: >
+      One container is rarely a whole system. A real app is a web server, an API, a
+      database, a cache, maybe a worker — each its own container, all needing to talk
+      to each other on a shared network. Running each by hand with the right flags,
+      ports, env vars, and start order does not scale past a few minutes of patience.
+  - type: text
+    body: >
+      Docker Compose declares the whole topology in one file: the services, their
+      images, the network they share (services reach each other by service name), the
+      volumes they mount, and — crucially — their **dependencies**. Compose uses the
+      dependency graph to start things in the right order: the database before the API
+      that needs it, the API before the web tier. The dependency graph is a DAG, and
+      computing a valid startup order is a topological sort.
+  - type: code_block
+    language: yaml
+    code: |
+      services:
+        web:   { build: ./web,  depends_on: [api] }
+        api:   { build: ./api,  depends_on: [db] }
+        db:    { image: postgres:16 }
+      # startup order honoring depends_on:  db -> api -> web
+
+snippet:
+  prompt: |
+    Compute a Compose startup order. Implement Compose with:
+      __init__(self, services)   # services: {name: [dependency names]}
+      startup_order(self) -> list of service names
+
+    A service must appear AFTER all of its dependencies (topological order). Every
+    service must appear exactly once. If there is a dependency cycle, raise ValueError.
+  starter_code: |
+    class Compose:
+        def __init__(self, services):
+            self.services = services
+
+        def startup_order(self):
+            # Your code here
+            pass
+  test_cases:
+    - name: "db starts before api before web"
+      setup: "c = Compose({'web':['api'],'api':['db'],'db':[]})"
+      call: "c.startup_order()"
+      expected: ["db", "api", "web"]
+    - name: "Independent service appears and deps still ordered"
+      setup: |
+        c = Compose({'api':['db'],'db':[],'cache':[]})
+        o = c.startup_order()
+        res = o.index('db') < o.index('api') and 'cache' in o and len(o) == 3
+      call: "res"
+      expected: true
+  hints:
+    - level: 1
+      cost: 10
+      text: "This is a topological sort over the depends_on graph."
+    - level: 2
+      cost: 25
+      text: "Depth-first: before adding a node, recursively visit (and add) all of its dependencies first."
+    - level: 3
+      cost: 50
+      text: "Track visiting/done sets. If you reach a node already in 'visiting', that's a cycle -> raise ValueError. Append a node only after its deps are appended."

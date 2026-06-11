@@ -1,0 +1,49 @@
+# Cascade — single-box observability stack (Prometheus + Grafana + Loki).
+#
+# Runs alongside docker-compose.prod.yml on the same box and the same Docker
+# network, so Prometheus can scrape the backend services by their compose names.
+#
+# Usage (join the prod network so service names resolve):
+#   docker compose -f docker-compose.prod.yml -f monitoring/docker-compose.monitoring.yml \
+#       --env-file .env.prod up -d
+#
+# Grafana:    http://<box>:3001   (admin / set GRAFANA_PASSWORD)
+# Prometheus: http://<box>:9090
+#
+# Keep these behind the reverse proxy / VPN — do NOT expose 9090/3001 publicly.
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    ports: ["127.0.0.1:9090:9090"]   # bind to localhost; reach via reverse proxy/SSH tunnel
+
+  grafana:
+    image: grafana/grafana:11.0.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafanadata:/var/lib/grafana
+    ports: ["127.0.0.1:3001:3000"]
+    depends_on: [prometheus]
+
+  loki:
+    image: grafana/loki:3.0.0
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - lokidata:/loki
+    ports: ["127.0.0.1:3100:3100"]
+
+volumes:
+  promdata:
+  grafanadata:
+  lokidata:

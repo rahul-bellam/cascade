@@ -42,5 +42,6 @@ go/pkg/sumdb/
 
 # Go compiled binaries
 services/cascade-engine/cascade-engine
-services/constraint-engine/constraint-engine*.tsbuildinfo
 tsconfig.tsbuildinfo
+services/constraint-engine/constraint-engine*.tsbuildinfo
+services/constraint-engine/constraint-engine

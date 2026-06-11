@@ -1,0 +1,80 @@
+slug: k8s-ingress
+title: "Kubernetes — Ingress Routing"
+prerequisites: [k8s-services]
+estimated_minutes: 15
+order_index: 27
+toolkit_key: ingress_routing
+
+concept:
+  - type: text
+    body: >
+      Services give you stable in-cluster endpoints, but the outside world can't reach
+      them directly, and you don't want a separate public load balancer (and bill) for
+      every service. You need one front door that takes external HTTP(S) traffic and
+      routes it to the right Service based on the request.
+  - type: text
+    body: >
+      An **Ingress** is that front door: a set of rules mapping `host` + `path` to a
+      backend Service. `api.example.com` and `example.com/api/*` go to the api service;
+      everything else under `example.com` goes to the web service. The ingress
+      controller also terminates TLS, so certificates live in one place. The key
+      routing rule is **longest-prefix-match**: a request to `/api/users` should match
+      the `/api` rule, not the catch-all `/` rule, so more specific paths must win.
+  - type: code_block
+    language: yaml
+    code: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      spec:
+        rules:
+          - host: app.example.com
+            http:
+              paths:
+                - { path: /api, pathType: Prefix, backend: { service: { name: api } } }
+                - { path: /,    pathType: Prefix, backend: { service: { name: web } } }
+
+snippet:
+  prompt: |
+    Implement host/path ingress routing. Implement Ingress with:
+      __init__(self, rules)             # rules: list of (host, path_prefix, service)
+      route(self, host, path) -> service name (or None)
+
+    A rule matches when host is exact AND path starts with the rule's prefix. When
+    multiple rules match, the one with the LONGEST path prefix wins. Return None if no
+    rule matches.
+  starter_code: |
+    class Ingress:
+        def __init__(self, rules):
+            # Your code here
+            pass
+
+        def route(self, host, path):
+            # Your code here
+            pass
+  test_cases:
+    - name: "Path prefix routes to the right service"
+      setup: "ing = Ingress([('app.io','/api','api-svc'),('app.io','/','web-svc')])"
+      call: "ing.route('app.io','/api/users')"
+      expected: "api-svc"
+    - name: "Longest matching path wins (order-independent)"
+      setup: "ing = Ingress([('app.io','/','web-svc'),('app.io','/api','api-svc')])"
+      call: "ing.route('app.io','/api/x')"
+      expected: "api-svc"
+    - name: "Non-API path falls through to web"
+      setup: "ing = Ingress([('app.io','/api','api-svc'),('app.io','/','web-svc')])"
+      call: "ing.route('app.io','/home')"
+      expected: "web-svc"
+    - name: "Unknown host -> no route"
+      setup: "ing = Ingress([('app.io','/','web-svc')])"
+      call: "ing.route('other.io','/')"
+      expected: null
+  hints:
+    - level: 1
+      cost: 10
+      text: "A rule matches when host == rule host and path.startswith(rule prefix)."
+    - level: 2
+      cost: 25
+      text: "To make longest-prefix win regardless of input order, sort the rules by descending prefix length."
+    - level: 3
+      cost: 50
+      text: "Return the service of the first matching rule after sorting longest-prefix-first; None if none match."

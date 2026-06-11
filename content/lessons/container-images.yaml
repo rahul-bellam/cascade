@@ -1,0 +1,78 @@
+slug: container-images
+title: "Container Images & Layer Caching"
+prerequisites: []
+estimated_minutes: 15
+order_index: 20
+toolkit_key: image_layer_cache
+
+concept:
+  - type: text
+    body: >
+      Before containers, "works on my machine" was a real curse: the app ran against
+      whatever Python, libraries, and OS packages happened to be on the developer's
+      laptop, and broke in production where those differed. A container image freezes
+      the entire userland — base OS, runtime, dependencies, and your code — into one
+      immutable artifact that runs identically everywhere.
+  - type: text
+    body: >
+      An image is built as a stack of read-only **layers**, one per build step. Docker
+      caches each layer and reuses it on the next build *only if that step and every
+      step before it are unchanged*. The moment one layer's inputs change, that layer
+      and everything after it must be rebuilt. This is why the ordering of your
+      Dockerfile matters enormously: put the things that rarely change (base image,
+      dependency install) early, and the thing that changes every commit (your source
+      code) last — otherwise every code edit re-installs all your dependencies.
+  - type: code_block
+    language: dockerfile
+    code: |
+      FROM python:3.12-slim        # layer 1 — almost never changes
+      COPY requirements.txt .      # layer 2 — changes only when deps change
+      RUN pip install -r requirements.txt
+      COPY . .                     # layer 3 — changes every commit (cheap to rebuild)
+      CMD ["python", "app.py"]
+
+snippet:
+  prompt: |
+    Model Docker's layer cache. Implement ImageBuilder with:
+      build(self, steps) -> list of rebuilt layer keys
+
+    `steps` is a list of (key, inputs_hash) tuples in Dockerfile order. A layer is
+    reused from cache ONLY if it and every layer before it are unchanged. Once any
+    layer is invalidated, every later layer must rebuild too (cache busting cascades
+    downward). Return the list of keys that were (re)built, in order.
+  starter_code: |
+    class ImageBuilder:
+        def __init__(self):
+            self.cache = {}
+            self.rebuilt = []
+
+        def build(self, steps):
+            # Your code here
+            pass
+  test_cases:
+    - name: "First build builds every layer"
+      setup: "b = ImageBuilder()"
+      call: "b.build([('base','v1'),('deps','v1'),('code','v1')])"
+      expected: ["base", "deps", "code"]
+    - name: "Unchanged rebuild reuses all layers"
+      setup: "b = ImageBuilder(); b.build([('base','v1'),('deps','v1'),('code','v1')])"
+      call: "b.build([('base','v1'),('deps','v1'),('code','v1')])"
+      expected: []
+    - name: "Changing only code rebuilds only code"
+      setup: "b = ImageBuilder(); b.build([('base','v1'),('deps','v1'),('code','v1')])"
+      call: "b.build([('base','v1'),('deps','v1'),('code','v2')])"
+      expected: ["code"]
+    - name: "Changing deps rebuilds deps and everything after it"
+      setup: "b = ImageBuilder(); b.build([('base','v1'),('deps','v1'),('code','v1')])"
+      call: "b.build([('base','v1'),('deps','v2'),('code','v1')])"
+      expected: ["deps", "code"]
+  hints:
+    - level: 1
+      cost: 10
+      text: "A layer's cache identity depends on its own step AND every step before it — carry a running prefix."
+    - level: 2
+      cost: 25
+      text: "Walk the steps in order. Track whether the cache has been invalidated yet; once it is, everything after must rebuild."
+    - level: 3
+      cost: 50
+      text: "Build a layer_id from (prefix, key, hash). If invalidated OR layer_id not in cache: rebuild, mark invalidated, cache it. Update prefix = layer_id each step."

@@ -1,0 +1,103 @@
+# Cascade — TLS reverse proxy for the single-box backend (Caddy v2).
+#
+# Caddy gets you automatic HTTPS (Let's Encrypt) with zero config beyond the
+# domain names. Each backend engine is published on its own subdomain so the
+# Next.js frontend (on Vercel) can point each *_ENGINE_URL at a clean origin and
+# there are no path-prefix collisions (cascade & constraint both serve
+# /archetypes and everything serves /health).
+#
+# Prereqs:
+#   - DNS A/AAAA records for each subdomain below -> this box's public IP.
+#   - Ports 80 and 443 open to the internet (Caddy needs 80 for ACME).
+#   - The backend running via docker-compose.prod.yml (engines reachable on
+#     127.0.0.1:<port> on this box).
+#
+# Run Caddy on the box (simplest — as a container sharing the host network):
+#   docker run -d --name caddy --network host \
+#     -v $PWD/deploy-box/Caddyfile:/etc/caddy/Caddyfile \
+#     -v caddy_data:/data -v caddy_config:/config caddy:2
+#
+# Then set these on Vercel (Project → Environment Variables):
+#   CASCADE_ENGINE_URL    = https://cascade.api.example.com
+#   CONSTRAINT_ENGINE_URL = https://constraint.api.example.com
+#   LEARN_ENGINE_URL      = https://learn.api.example.com
+#   REFACTOR_ENGINE_URL   = https://refactor.api.example.com
+#   ARENA_ENGINE_URL      = https://arena.api.example.com
+#   AUTH_SERVICE_URL      = https://auth.api.example.com
+#   (predict is served by cascade-engine → reuse CASCADE_ENGINE_URL)
+#   NEXT_PUBLIC_ARENA_WS_URL = wss://arena.api.example.com/arena/queue   (browser-direct WS)
+#
+# Replace api.example.com with your domain. Set an email for ACME notices:
+{
+	email admin@example.com
+}
+
+# ── Shared snippets ──────────────────────────────────────────────────────────
+(secure_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# CORS for browser-origin calls (only the arena WS is browser-direct; the rest are
+# proxied server-side by Vercel and don't need CORS, but this is harmless/safe).
+(cors) {
+	@cors_preflight method OPTIONS
+	header {
+		Access-Control-Allow-Origin "{$FRONTEND_ORIGIN:https://app.example.com}"
+		Access-Control-Allow-Methods "GET, POST, OPTIONS"
+		Access-Control-Allow-Headers "Content-Type, Authorization"
+		Access-Control-Max-Age "86400"
+	}
+	respond @cors_preflight 204
+}
+
+# ── Engines (subdomain per service) ──────────────────────────────────────────
+
+cascade.api.example.com {
+	import secure_headers
+	import cors
+	reverse_proxy 127.0.0.1:8090
+}
+
+constraint.api.example.com {
+	import secure_headers
+	import cors
+	reverse_proxy 127.0.0.1:8094
+}
+
+learn.api.example.com {
+	import secure_headers
+	import cors
+	reverse_proxy 127.0.0.1:8093
+}
+
+refactor.api.example.com {
+	import secure_headers
+	import cors
+	reverse_proxy 127.0.0.1:8095
+}
+
+auth.api.example.com {
+	import secure_headers
+	import cors
+	reverse_proxy 127.0.0.1:8081
+}
+
+# Arena: HTTP + WebSocket. Caddy proxies WebSocket upgrades transparently — the
+# browser connects directly to wss://arena.api.example.com/arena/queue.
+arena.api.example.com {
+	import secure_headers
+	import cors
+	reverse_proxy 127.0.0.1:8096
+}
+
+# Optional: expose user-profile service if the frontend ever calls it directly.
+# user.api.example.com {
+# 	import secure_headers
+# 	reverse_proxy 127.0.0.1:8082
+# }

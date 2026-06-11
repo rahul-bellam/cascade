@@ -1,0 +1,84 @@
+slug: k8s-pods-replicas
+title: "Kubernetes — Pods, Replicas & Self-Healing"
+prerequisites: [cd-rollout]
+estimated_minutes: 18
+order_index: 25
+toolkit_key: replica_reconcile
+
+concept:
+  - type: text
+    body: >
+      Compose runs containers on one machine. Kubernetes runs them across a fleet, and
+      its core idea is **declarative reconciliation**: you declare the desired state
+      ("I want 3 replicas of this pod"), and a controller continuously works to make
+      reality match. A **pod** is the smallest deployable unit (one or more tightly
+      coupled containers sharing a network namespace).
+  - type: text
+    body: >
+      A ReplicaSet (managed by a Deployment) watches the live pod count and reconciles:
+      too few pods → it creates more; too many → it deletes some; a pod crashes or its
+      node dies → it notices the count dropped and spawns a replacement. This is
+      self-healing — no human pages, the system restores its own desired state. The
+      same loop powers scaling: change `replicas` from 3 to 10 and the controller
+      converges there. (The HorizontalPodAutoscaler does this automatically based on
+      CPU/metrics.)
+  - type: code_block
+    language: yaml
+    code: |
+      apiVersion: apps/v1
+      kind: Deployment
+      spec:
+        replicas: 3          # desired state — the controller maintains exactly this
+        template:
+          spec:
+            containers:
+              - name: api
+                image: ghcr.io/acme/api:abc123
+
+snippet:
+  prompt: |
+    Model a self-healing ReplicaSet. Implement:
+      __init__(self, desired)
+      reconcile(self) -> int     # add/remove pods until count == desired; return count
+      crash(self, pid)           # remove a pod (node failure / OOM)
+
+    reconcile() spawns pods named "pod-1", "pod-2", ... (monotonically increasing ids)
+    when below desired, and removes pods when above desired. Changing self.desired and
+    calling reconcile() again must converge to the new target.
+  starter_code: |
+    class ReplicaSet:
+        def __init__(self, desired):
+            self.desired = desired
+            self.pods = []
+            self._next = 1
+
+        def reconcile(self):
+            # Your code here
+            pass
+
+        def crash(self, pid):
+            # Your code here
+            pass
+  test_cases:
+    - name: "Scales up to desired from empty"
+      setup: "rs = ReplicaSet(3)"
+      call: "rs.reconcile()"
+      expected: 3
+    - name: "Self-heals after a pod crash"
+      setup: "rs = ReplicaSet(3); rs.reconcile(); rs.crash('pod-1')"
+      call: "rs.reconcile()"
+      expected: 3
+    - name: "Scales down when desired is lowered"
+      setup: "rs = ReplicaSet(3); rs.reconcile(); rs.desired = 1"
+      call: "rs.reconcile()"
+      expected: 1
+  hints:
+    - level: 1
+      cost: 10
+      text: "Reconcile is just: while too few, add one; while too many, remove one; return the count."
+    - level: 2
+      cost: 25
+      text: "Give each new pod a unique id from a counter so replacements after a crash get fresh names."
+    - level: 3
+      cost: 50
+      text: "crash() removes a pod id from the list; the next reconcile() sees the count is below desired and spawns a replacement."

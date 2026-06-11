@@ -1,0 +1,79 @@
+slug: api-gateway
+title: "API Gateway — The Edge"
+prerequisites: [k8s-ingress]
+estimated_minutes: 15
+order_index: 28
+toolkit_key: api_gateway
+
+concept:
+  - type: text
+    body: >
+      An ingress decides *where* a request goes. An **API gateway** decides *whether it
+      should be served at all*, and applies the cross-cutting concerns that every
+      service would otherwise have to re-implement: authentication, per-client rate
+      limiting, request validation, quotas, and observability. It is the single
+      enforcement point at the edge of your system.
+  - type: text
+    body: >
+      Centralizing these at the gateway means a request with a bad API key is rejected
+      with 401 before it ever touches a backend, and an abusive client is throttled with
+      429 at the door — protecting every downstream service at once. The trade-off: the
+      gateway is now on the hot path for every request and is itself a scaling and
+      availability concern (it must be replicated and must not become a bottleneck — the
+      exact problem you study in the rate-limiter and deployment-pipeline cascades).
+  - type: code_block
+    language: text
+    code: |
+      client ── API key + route ──> [ API GATEWAY ]
+                                       authn?  ── no ──> 401
+                                       under per-client limit?  ── no ──> 429
+                                       yes ──> route to backend service ──> 200
+
+snippet:
+  prompt: |
+    Implement an edge API gateway. Implement ApiGateway with:
+      __init__(self, limit, valid_keys)
+      handle(self, api_key, route) -> HTTP status code
+
+    Rules, in order:
+      1. If api_key is not a valid key -> 401 (reject at the edge, never count it).
+      2. Otherwise count this request against the key. If the key's request count now
+         EXCEEDS `limit` -> 429.
+      3. Otherwise -> 200.
+    The limit is per-client (per api_key), independent of other clients.
+  starter_code: |
+    class ApiGateway:
+        def __init__(self, limit, valid_keys):
+            # Your code here
+            pass
+
+        def handle(self, api_key, route):
+            # Your code here
+            pass
+  test_cases:
+    - name: "Invalid key is rejected at the edge"
+      setup: "gw = ApiGateway(2, ['k1'])"
+      call: "gw.handle('bad','/x')"
+      expected: 401
+    - name: "Valid key under the limit passes"
+      setup: "gw = ApiGateway(2, ['k1'])"
+      call: "[gw.handle('k1','/x'), gw.handle('k1','/x')]"
+      expected: [200, 200]
+    - name: "Over the limit gets 429"
+      setup: "gw = ApiGateway(2, ['k1']); gw.handle('k1','/x'); gw.handle('k1','/x')"
+      call: "gw.handle('k1','/x')"
+      expected: 429
+    - name: "Rate limit is per-client"
+      setup: "gw = ApiGateway(1, ['k1','k2']); gw.handle('k1','/x')"
+      call: "gw.handle('k2','/x')"
+      expected: 200
+  hints:
+    - level: 1
+      cost: 10
+      text: "Check key validity FIRST and return 401 before touching any counter."
+    - level: 2
+      cost: 25
+      text: "Keep a per-key counter dict; increment it for valid keys only."
+    - level: 3
+      cost: 50
+      text: "After incrementing, if the count is greater than limit return 429, else 200. Each key has its own count."

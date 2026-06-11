@@ -1,0 +1,50 @@
+archetype: deploy_platform
+name: "Deploy Platform"
+slug: deploy-platform
+starting_monolith: "A single container on one VM, fronted by nothing. ~2k req/s before the box pegs at 100% CPU. Works for a demo, wrong for traffic."
+origin_code: deploy-platform/origin.py
+
+# A fix passes a level when its description introduces the required capability
+# (matched by keywords, like the Cascade fix analyzer) AND the simulated metrics
+# meet the level's SLA. This track is about scaling the *deployment*, not the app:
+# replicas, autoscaling, an edge front door, and a resilient gateway.
+constraints:
+  - level: 1
+    title: "5x traffic — one box can't keep up"
+    impact: "The single container hits 100% CPU at ~2k req/s. Above that, requests queue and time out. There is exactly one instance and nothing restarts it if it dies."
+    target_rps: 5000
+    latency_sla_ms: 300
+    error_sla_pct: 1.0
+    change_type: horizontal_scaling
+    requires_any: [replica, replicas, hpa, autoscal, horizontal, kubernetes, k8s, pods, deployment]
+    hints:
+      - "Which metric is pinned? (CPU at 100%, throughput ceiling ~2k)"
+      - "You can't make one box infinitely bigger — run more of it."
+      - "Move to a Kubernetes Deployment with multiple replicas (and an HPA to autoscale). See the k8s-pods-replicas lesson."
+
+  - level: 2
+    title: "10x traffic — no front door, traffic hits pods directly"
+    impact: "With many pods churning IPs, clients can't find a stable endpoint and load isn't balanced. One hot pod melts while others sit idle; deploys reshuffle everything."
+    target_rps: 10000
+    latency_sla_ms: 400
+    error_sla_pct: 1.5
+    change_type: edge_routing
+    requires_any: [ingress, gateway, "load balancer", "load-balancer", lb]
+    requires: []
+    hints:
+      - "Which metric is uneven? (one endpoint saturated, others idle)"
+      - "You need one stable front door that balances across healthy pods."
+      - "Add an ingress + load balancer in front of the autoscaled pods. See the k8s-ingress / k8s-services lessons."
+
+  - level: 3
+    title: "30x traffic — the edge is the new bottleneck"
+    impact: "At 60k req/s the origin can't absorb every request and the single gateway saturates. A traffic spike OOMs it and the whole platform goes dark — the front door became the single point of failure."
+    target_rps: 60000
+    latency_sla_ms: 500
+    error_sla_pct: 2.0
+    change_type: resilient_edge
+    requires_any: ["rate limit", "rate-limit", ratelimit, circuit, shed, cdn]
+    hints:
+      - "Which metrics break? (gateway CPU pinned, errors spike on the spike)"
+      - "Shed and absorb at the edge: cache the common case, throttle abuse, fail gracefully."
+      - "Add a CDN edge cache + rate limiting + circuit breaking at an autoscaled, replicated gateway. See the api-gateway lesson."

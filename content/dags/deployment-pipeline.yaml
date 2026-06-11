@@ -1,0 +1,263 @@
+# Deployment Pipeline — Cascade DAG
+# The evolution of how you ship software, told as a failure cascade: from a
+# container on a laptop to a Kubernetes platform behind an API gateway. Every fix
+# you apply to grow the platform exposes the next failure mode of that growth.
+#
+# Sources: countless real incidents — "the DB container restarted and ate prod
+# data", crashloop storms, missing readiness probes routing traffic to dead pods,
+# ingress misroutes, gateway as a SPOF.
+#
+# Condition language (Cascade Engine fix analyzer):
+#   fix_contains('x')  -> substring/keyword match against the user's fix text
+#   fix_empty()        -> no meaningful fix
+#   AND / OR / NOT     -> boolean combinators
+
+archetype: deployment_pipeline
+name: "Deployment Pipeline"
+slug: deployment-pipeline
+version: 1.0
+
+lessons:
+  - container-images
+  - docker-volumes
+  - docker-compose
+  - ci-pipeline
+  - cd-rollout
+  - k8s-pods-replicas
+  - k8s-services
+  - k8s-ingress
+  - api-gateway
+
+start: origin
+
+nodes:
+  - id: origin
+    type: starting_state
+    description: "The app runs in one container started by hand on a single VM. State is written inside the container. Deploys are 'docker stop && docker run' at 2 AM. It works — for now."
+    expected_failures:
+      - "What happens to data when the container restarts?"
+      - "What happens to users during a deploy?"
+      - "How do you know a build is safe before it ships?"
+    transitions:
+      - to: ephemeral_data_loss
+        weight: 1.0
+
+  - id: ephemeral_data_loss
+    type: issue
+    severity: critical
+    category: data_loss
+    description: "A routine redeploy replaces the container. The database lived in the container's writable layer — every row is gone. There were no backups because 'it's just a container'."
+    concern_ids: [21, 24]
+    expected_failures:
+      - "Once state is on a volume, how do you run more than one service?"
+      - "How do you stop a bad build from ever reaching deploy?"
+    expected_reasoning:
+      diagnosis: ["container filesystem is ephemeral", "state written inside the container", "no volume", "restart wipes data"]
+      tradeoffs: ["volumes tie a container to a host or storage backend", "stateful containers are harder to move", "still need backups on top of volumes"]
+      foresight: ["one container becomes many services to wire together", "need orchestration once state is safe"]
+    solution_signature:
+      required: [persistent_storage]
+      preferred: named_volume
+    hints:
+      - {level: 1, cost: 10, text: "Where did the database files actually live?"}
+      - {level: 2, cost: 25, text: "Container layers are ephemeral. State must outlive the container."}
+      - {level: 3, cost: 50, text: "Mount a named volume for the data path so it persists across restarts and redeploys. See the docker-volumes lesson."}
+    transitions:
+      - {to: manual_orchestration, condition: "fix_contains('volume') OR fix_contains('persist') OR fix_contains('mount')", weight: 0.7}
+      - {to: no_ci_gate, condition: "fix_contains('backup') AND NOT fix_contains('volume')", weight: 0.2}
+      - {to: terminal_fail, condition: "fix_empty()", weight: 0.1}
+
+  - id: manual_orchestration
+    type: issue
+    severity: high
+    category: scalability
+    description: "Now there are five containers — web, api, db, cache, worker — each started by hand with the right flags, ports, and start order. A teammate brings up api before db; it crashes. Nobody can reproduce the setup."
+    concern_ids: [60, 61]
+    expected_failures:
+      - "How do you guarantee a tested image is what ships?"
+      - "What happens when this one VM isn't enough?"
+    expected_reasoning:
+      diagnosis: ["services started by hand", "no declared dependency order", "not reproducible", "api starts before db"]
+      tradeoffs: ["compose is single-host", "declaring topology adds a file to maintain", "still not highly available"]
+      foresight: ["need automated build/test gate before shipping", "single host becomes the ceiling"]
+    solution_signature:
+      required: [orchestration]
+      preferred: docker_compose
+    hints:
+      - {level: 1, cost: 10, text: "Why did api crash when started first?"}
+      - {level: 2, cost: 25, text: "Declare the whole topology and its dependency order in one place."}
+      - {level: 3, cost: 50, text: "Use Docker Compose with depends_on so services start in the right order on a shared network. See the docker-compose lesson."}
+    transitions:
+      - {to: no_ci_gate, condition: "fix_contains('compose') OR fix_contains('orchestrat')", weight: 0.7}
+      - {to: single_host_ceiling, condition: "fix_contains('bigger') OR fix_contains('vertical')", weight: 0.3}
+
+  - id: no_ci_gate
+    type: issue
+    severity: high
+    category: reliability
+    description: "A developer pushes a change that compiles locally but fails its tests. It ships straight to prod and takes the API down for 40 minutes. There was no automated check between commit and deploy."
+    concern_ids: [70, 71]
+    expected_failures:
+      - "Once builds are gated, how do you deploy without downtime?"
+    expected_reasoning:
+      diagnosis: ["no automated build/test before deploy", "broken code reached production", "manual process skipped tests"]
+      tradeoffs: ["ci adds minutes to every change", "flaky tests can block shipping", "pipeline infra to maintain"]
+      foresight: ["recreate deploys still cause downtime", "need rolling/zero-downtime delivery next"]
+    solution_signature:
+      required: [continuous_integration]
+      preferred: ci_pipeline_fail_fast
+    hints:
+      - {level: 1, cost: 10, text: "What ran between 'it compiles on my laptop' and 'it's in prod'? Nothing."}
+      - {level: 2, cost: 25, text: "Build and test the image automatically on every change, and stop on the first failure."}
+      - {level: 3, cost: 50, text: "Add a fail-fast CI pipeline (build -> test -> lint) that blocks deploy on red. See the ci-pipeline lesson."}
+    transitions:
+      - {to: downtime_deploys, condition: "fix_contains('ci') OR fix_contains('pipeline') OR fix_contains('test') OR fix_contains('build')", weight: 0.8}
+      - {to: terminal_fail, condition: "fix_empty()", weight: 0.2}
+
+  - id: downtime_deploys
+    type: issue
+    severity: medium
+    category: availability
+    description: "Every deploy stops all instances then starts the new ones. For ~30 seconds the site is fully down. Marketing just launched a campaign and deploys happen hourly."
+    concern_ids: [73]
+    expected_failures:
+      - "What happens when a single host can't hold the load?"
+    expected_reasoning:
+      diagnosis: ["recreate strategy takes everything down", "zero instances serving during deploy", "no rolling update"]
+      tradeoffs: ["rolling runs old and new versions at once", "requires backward-compatible changes", "readiness probes add complexity"]
+      foresight: ["scaling out needs an orchestrator that reconciles desired state"]
+    solution_signature:
+      required: [zero_downtime_deploy]
+      preferred: rolling_update
+    hints:
+      - {level: 1, cost: 10, text: "During a deploy, how many instances are serving traffic?"}
+      - {level: 2, cost: 25, text: "Replace instances a few at a time instead of all at once."}
+      - {level: 3, cost: 50, text: "Use a rolling update with maxUnavailable + readiness checks for zero-downtime delivery. See the cd-rollout lesson."}
+    transitions:
+      - {to: single_host_ceiling, condition: "fix_contains('rolling') OR fix_contains('rollout') OR fix_contains('readiness') OR fix_contains('canary') OR fix_contains('blue')", weight: 0.8}
+      - {to: terminal_fail, condition: "fix_empty()", weight: 0.2}
+
+  - id: single_host_ceiling
+    type: issue
+    severity: high
+    category: scalability
+    description: "Traffic triples. The single VM is at 100% CPU; Compose can't spread containers across machines. You add a second VM but now nothing knows how to schedule or balance across both."
+    concern_ids: [60, 90]
+    expected_failures:
+      - "When a pod dies on its own, who brings it back?"
+      - "Pods get new IPs constantly — how does anything find them?"
+    expected_reasoning:
+      diagnosis: ["single host is the ceiling", "compose cannot schedule across machines", "no cluster scheduler", "no cross-host load balancing"]
+      tradeoffs: ["kubernetes adds large operational complexity", "cluster overhead for small apps", "steep learning curve"]
+      foresight: ["pods will crash and need self-healing", "pod IPs churn so discovery is needed"]
+    solution_signature:
+      required: [cluster_orchestration]
+      preferred: kubernetes_deployment
+    hints:
+      - {level: 1, cost: 10, text: "Compose runs on one host. What runs containers across a fleet?"}
+      - {level: 2, cost: 25, text: "Move to a cluster scheduler that reconciles a declared replica count across nodes."}
+      - {level: 3, cost: 50, text: "Adopt Kubernetes: a Deployment with replicas scheduled across nodes. See the k8s-pods-replicas lesson."}
+    transitions:
+      - {to: crashloop_storm, condition: "fix_contains('kubernetes') OR fix_contains('k8s') OR fix_contains('replica') OR fix_contains('deployment') OR fix_contains('pod')", weight: 0.7}
+      - {to: cost_explosion, condition: "fix_contains('more vms') OR fix_contains('bigger') OR fix_contains('vertical')", weight: 0.3}
+
+  - id: crashloop_storm
+    type: issue
+    severity: critical
+    category: availability
+    description: "A bad config makes new pods crash on startup. Kubernetes dutifully restarts them — forever — in a CrashLoopBackOff storm. Meanwhile the Service still lists the dead pods and routes real traffic into the void: 503s everywhere."
+    concern_ids: [115, 122]
+    expected_failures:
+      - "How does traffic find only the *healthy* pods?"
+      - "How does outside traffic even reach the cluster?"
+    expected_reasoning:
+      diagnosis: ["pods crash on startup", "crashloopbackoff", "service routes to unready pods", "no readiness/liveness probe"]
+      tradeoffs: ["probes add config and can be tuned wrong", "aggressive probes can kill slow-starting pods", "discovery indirection hides which pod served a request"]
+      foresight: ["external traffic still has no front door", "need ingress/gateway at the edge"]
+    solution_signature:
+      required: [health_gated_discovery]
+      preferred: service_with_readiness
+    hints:
+      - {level: 1, cost: 10, text: "Why is traffic still hitting pods that aren't actually up?"}
+      - {level: 2, cost: 25, text: "Only ready pods should be endpoints of the Service; gate membership on a readiness probe."}
+      - {level: 3, cost: 50, text: "Add readiness/liveness probes so the Service load-balances over healthy endpoints only. See the k8s-services lesson."}
+    transitions:
+      - {to: ingress_misroute, condition: "fix_contains('readiness') OR fix_contains('liveness') OR fix_contains('probe') OR fix_contains('health') OR fix_contains('service')", weight: 0.8}
+      - {to: terminal_fail, condition: "fix_empty()", weight: 0.2}
+
+  - id: ingress_misroute
+    type: issue
+    severity: high
+    category: availability
+    description: "You expose services to the internet. A catch-all '/' ingress rule is listed before '/api', so every API call matches '/' and lands on the web frontend. Mobile clients get HTML instead of JSON; the app is broken for everyone off-web."
+    concern_ids: [90, 91]
+    expected_failures:
+      - "Who enforces auth and rate limits before traffic hits services?"
+    expected_reasoning:
+      diagnosis: ["ingress rule ordering", "catch-all matches before specific path", "api traffic routed to web service", "no longest-prefix match"]
+      tradeoffs: ["ingress becomes a shared routing config to govern", "tls and rules centralize but also concentrate risk", "controller is another moving part"]
+      foresight: ["edge still has no authn/rate-limit", "the front door can become a single point of failure"]
+    solution_signature:
+      required: [correct_routing]
+      preferred: ingress_longest_prefix
+    hints:
+      - {level: 1, cost: 10, text: "Which rule does /api/users match first?"}
+      - {level: 2, cost: 25, text: "More specific paths must win over the catch-all."}
+      - {level: 3, cost: 50, text: "Define ingress rules so the longest matching path prefix wins (/api before /). See the k8s-ingress lesson."}
+    transitions:
+      - {to: gateway_overload, condition: "fix_contains('ingress') OR fix_contains('longest') OR fix_contains('prefix') OR fix_contains('route') OR fix_contains('path')", weight: 0.8}
+      - {to: terminal_fail, condition: "fix_empty()", weight: 0.2}
+
+  - id: gateway_overload
+    type: issue
+    severity: critical
+    category: availability
+    description: "You add an API gateway for auth and rate limiting — and run a single replica of it. Every request now flows through that one pod. It saturates at peak, and when it OOMs the entire platform is unreachable: the front door became the single point of failure."
+    concern_ids: [43, 90, 115]
+    expected_failures:
+      - "Is the gateway itself replicated and resilient?"
+    expected_reasoning:
+      diagnosis: ["single gateway replica", "all traffic through one pod", "gateway is a single point of failure", "no horizontal scaling at the edge"]
+      tradeoffs: ["replicating the gateway needs shared/limit state coordination", "edge resilience adds cost", "more replicas, more config"]
+      foresight: ["once the edge is HA and the platform self-heals, the system is stable"]
+    solution_signature:
+      required: [resilient_edge]
+      preferred: replicated_gateway_with_limits
+    hints:
+      - {level: 1, cost: 10, text: "How many gateway pods stand between the internet and everything?"}
+      - {level: 2, cost: 25, text: "The edge must be horizontally scaled and must shed load gracefully."}
+      - {level: 3, cost: 50, text: "Run multiple gateway replicas behind a load balancer (autoscaled) with rate limiting and circuit breaking so it degrades instead of dying. See the api-gateway lesson."}
+    transitions:
+      - {to: terminal_stable, condition: "(fix_contains('replica') OR fix_contains('horizontal') OR fix_contains('autoscal') OR fix_contains('hpa')) AND (fix_contains('rate') OR fix_contains('circuit') OR fix_contains('limit') OR fix_contains('shed'))", weight: 0.7}
+      - {to: terminal_stable_costly, condition: "fix_contains('replica') OR fix_contains('horizontal') OR fix_contains('bigger') OR fix_contains('autoscal')", weight: 0.3}
+
+  - id: cost_explosion
+    type: issue
+    severity: low
+    category: cost
+    description: "You scaled by adding ever-bigger VMs by hand. The monthly bill is now $9,000 for capacity that sits idle most of the day."
+    solution_signature:
+      required: [cost_optimization]
+      preferred: autoscaling
+    hints:
+      - {level: 1, cost: 10, text: "Are you paying for peak capacity 24/7?"}
+      - {level: 2, cost: 25, text: "Let the platform add and remove capacity with demand."}
+      - {level: 3, cost: 50, text: "Move to a cluster with horizontal autoscaling (HPA) so you pay for what you use."}
+    transitions:
+      - {to: crashloop_storm, condition: "fix_contains('kubernetes') OR fix_contains('k8s') OR fix_contains('autoscal') OR fix_contains('hpa') OR fix_contains('replica')", weight: 0.7}
+      - {to: terminal_stable_costly, condition: "fix_contains('downsize') OR fix_contains('reserved')", weight: 0.3}
+
+  - id: terminal_stable
+    type: terminal
+    outcome: survived
+    description: "PLATFORM STABLE. Persistent state, gated CI, zero-downtime rolling deploys, self-healing pods, health-gated discovery, correct ingress, and a replicated rate-limited gateway. You shipped a real platform — and survived its evolution."
+
+  - id: terminal_stable_costly
+    type: terminal
+    outcome: survived
+    description: "PLATFORM STABLE (expensive). It stays up, but you scaled with brute force instead of autoscaling and graceful degradation. It works, and the bill shows it."
+
+  - id: terminal_fail
+    type: terminal
+    outcome: failed
+    description: "PLATFORM DOWN. Ignoring the failure was the only wrong move. Every outage here was a real one somebody lived through."

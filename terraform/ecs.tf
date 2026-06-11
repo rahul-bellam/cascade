@@ -1,13 +1,13 @@
 locals {
   services = {
-    cascade-engine  = { port = 8090, cpu = 512, memory = 1024 },
-    learn-engine    = { port = 8093, cpu = 256, memory = 512 },
+    cascade-engine    = { port = 8090, cpu = 512, memory = 1024 },
+    learn-engine      = { port = 8093, cpu = 256, memory = 512 },
     constraint-engine = { port = 8094, cpu = 256, memory = 512 },
-    insight-engine  = { port = 8097, cpu = 256, memory = 512 },
-    arena-engine    = { port = 8096, cpu = 256, memory = 256 },
-    refactor-engine = { port = 8095, cpu = 256, memory = 256 },
-    auth            = { port = 8081, cpu = 128, memory = 256 },
-    user            = { port = 8082, cpu = 128, memory = 256 },
+    insight-engine    = { port = 8097, cpu = 256, memory = 512 },
+    arena-engine      = { port = 8096, cpu = 256, memory = 256 },
+    refactor-engine   = { port = 8095, cpu = 256, memory = 256 },
+    auth              = { port = 8081, cpu = 128, memory = 256 },
+    user              = { port = 8082, cpu = 128, memory = 256 },
   }
 }
 
@@ -61,8 +61,8 @@ resource "aws_ecs_service" "service" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = aws_subnet.private[*].id
-    security_groups = [aws_security_group.ecs.id]
+    subnets          = aws_subnet.private[*].id
+    security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
 
@@ -120,7 +120,7 @@ resource "aws_ecr_repository" "cascade" {
 }
 
 resource "aws_ecr_lifecycle_policy" "cascade" {
-  for_each = aws_ecr_repository.cascade
+  for_each   = aws_ecr_repository.cascade
   repository = each.value.name
   policy = jsonencode({
     rules = [{
@@ -143,9 +143,9 @@ resource "aws_iam_role" "ecs_execution" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Service = "ecs-tasks.amazonaws.com" }
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 }
@@ -160,9 +160,9 @@ resource "aws_iam_role" "ecs_task" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Service = "ecs-tasks.amazonaws.com" }
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 }
@@ -173,13 +173,13 @@ resource "aws_iam_policy" "ecs_task" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
         Resource = "${aws_s3_bucket.cascade.arn}/*"
       },
       {
-        Effect = "Allow"
-        Action = ["secretsmanager:GetSecretValue"]
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
         Resource = [aws_secretsmanager_secret.jwt.arn]
       }
     ]
@@ -198,12 +198,19 @@ resource "aws_secretsmanager_secret" "jwt" {
   tags = { Name = "cascade-jwt" }
 }
 
+# Populate the secret value from the (sensitive) jwt_secret variable so ECS tasks
+# can resolve JWT_SECRET via secrets[].valueFrom. Pass -var="jwt_secret=..." at apply.
+resource "aws_secretsmanager_secret_version" "jwt" {
+  secret_id     = aws_secretsmanager_secret.jwt.id
+  secret_string = var.jwt_secret
+}
+
 # ── CloudWatch ───────────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "cascade" {
   name              = "/ecs/cascade"
   retention_in_days = 90
-  tags = { Name = "cascade-logs" }
+  tags              = { Name = "cascade-logs" }
 }
 
 # ── Auto Scaling ─────────────────────────────────────────────────────────────
@@ -221,7 +228,7 @@ resource "aws_appautoscaling_target" "service" {
 resource "aws_appautoscaling_policy" "cpu" {
   for_each = local.services
 
-  name = "cascade-${each.key}-cpu-scaling"
+  name               = "cascade-${each.key}-cpu-scaling"
   service_namespace  = aws_appautoscaling_target.service[each.key].service_namespace
   resource_id        = aws_appautoscaling_target.service[each.key].resource_id
   scalable_dimension = aws_appautoscaling_target.service[each.key].scalable_dimension

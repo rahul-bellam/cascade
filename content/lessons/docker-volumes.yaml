@@ -1,0 +1,86 @@
+slug: docker-volumes
+title: "Container State & Volumes"
+prerequisites: [container-images]
+estimated_minutes: 15
+order_index: 21
+toolkit_key: container_volume
+
+concept:
+  - type: text
+    body: >
+      A container's filesystem is a thin writable layer on top of the read-only image.
+      That writable layer is *ephemeral*: the instant the container is removed or
+      restarted, every file written inside it is gone. This is a feature — it makes
+      containers disposable and reproducible — but it is also the single most common
+      production data-loss bug: people run a database in a container, the container
+      restarts during a deploy, and the data evaporates.
+  - type: text
+    body: >
+      The fix is a **volume**: a storage location managed outside the container's
+      lifecycle and mounted into the container at a path. Anything written under a
+      mounted path goes to the volume and survives restarts, redeploys, and image
+      upgrades. Anything written outside a mounted path lives only in the ephemeral
+      container layer. Stateful workloads (databases, uploads, caches you can't lose)
+      must write only to volume-backed paths.
+  - type: code_block
+    language: yaml
+    code: |
+      # docker-compose: the named volume outlives the container
+      services:
+        db:
+          image: postgres:16
+          volumes:
+            - pgdata:/var/lib/postgresql/data   # persisted
+          # anything Postgres writes outside /var/lib/postgresql/data is ephemeral
+      volumes:
+        pgdata:
+
+snippet:
+  prompt: |
+    Model ephemeral vs persistent container storage. Implement Container with:
+      __init__(self, volume=None, mounts=())  # mounts = path prefixes backed by the volume
+      write(self, path, data)                 # route to volume if under a mount, else ephemeral
+      read(self, path)                        # read back (None if absent)
+      restart(self) -> Container              # return a fresh container: volume survives, ephemeral fs wiped
+
+    A path is volume-backed if it starts with any of the mount prefixes.
+  starter_code: |
+    class Container:
+        def __init__(self, volume=None, mounts=()):
+            # Your code here
+            pass
+
+        def write(self, path, data):
+            # Your code here
+            pass
+
+        def read(self, path):
+            # Your code here
+            pass
+
+        def restart(self):
+            # Your code here
+            pass
+  test_cases:
+    - name: "Ephemeral write is lost on restart"
+      setup: "c = Container(); c.write('/tmp/x','1'); c = c.restart()"
+      call: "c.read('/tmp/x')"
+      expected: null
+    - name: "Volume-backed write survives restart"
+      setup: "c = Container(mounts=('/data',)); c.write('/data/db','1'); c = c.restart()"
+      call: "c.read('/data/db')"
+      expected: "1"
+    - name: "A non-volume path is still ephemeral even when a mount exists"
+      setup: "c = Container(mounts=('/data',)); c.write('/app/cache','1'); c = c.restart()"
+      call: "c.read('/app/cache')"
+      expected: null
+  hints:
+    - level: 1
+      cost: 10
+      text: "Keep two stores: one for the volume (shared across restarts) and one for the ephemeral container layer."
+    - level: 2
+      cost: 25
+      text: "On write/read, check if the path starts with any mount prefix to decide which store to use."
+    - level: 3
+      cost: 50
+      text: "restart() returns a new Container that reuses the SAME volume dict and mounts, but a fresh empty ephemeral fs."

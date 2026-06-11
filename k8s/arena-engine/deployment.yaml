@@ -20,6 +20,11 @@ spec:
           image: cascade/arena-engine:latest
           ports:
             - containerPort: 8096
+          env:
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: cascade-secrets, key: database-url } }
+            - name: REDIS_URL
+              valueFrom: { secretKeyRef: { name: cascade-secrets, key: redis-url } }
           resources:
             requests: { cpu: "250m", memory: "256Mi" }
             limits: { cpu: "1", memory: "512Mi" }
@@ -27,6 +32,10 @@ spec:
             httpGet: { path: /health, port: 8096 }
             initialDelaySeconds: 10
             periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /health, port: 8096 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -40,3 +49,11 @@ spec:
     - port: 8096
       targetPort: 8096
   type: ClusterIP
+  # Arena holds persistent WebSocket duel connections. Pin each client to one
+  # pod so a duel's two sockets land on the same replica (in-process duel state).
+  # For path/host-based stickiness at the edge, also set the ingress controller's
+  # affinity annotations (e.g. nginx.ingress.kubernetes.io/affinity: cookie).
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800

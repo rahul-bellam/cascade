@@ -123,9 +123,33 @@ Stay on the single box until you hit a *real* signal, then graduate one piece at
 The scaffolding for the end state (`terraform/`, `k8s/`, monitoring) is intentionally already in the
 repo — but **dormant**. We turn it on when revenue justifies the bill, not before.
 
-## 7. Cleanup debt (infra)
+## 7. TLS reverse proxy for the box (`deploy-box/`)
 
-There are currently **two** infra trees: `deploy/{terraform,k8s,monitoring}` (referenced by
-`deployment.md`) and root `terraform/` + `k8s/`. Before enabling the AWS path, consolidate to one
-(recommend keeping root `terraform/` + `k8s/`, folding in `deploy/monitoring/`). Not urgent — both
-are dormant during the bootstrap phase.
+The frontend (on Vercel) calls each engine through a distinct `*_ENGINE_URL`, and the Arena
+WebSocket connects browser-direct. cascade-engine and constraint-engine both serve `/archetypes`
+and everything serves `/health`, so **path-based routing on one host collides** — we use
+**subdomain-per-engine** instead.
+
+- **`deploy-box/Caddyfile`** (recommended) — automatic HTTPS via Let's Encrypt, WebSocket
+  passthrough for Arena, HSTS/security headers. Validated with `caddy validate` ("Valid
+  configuration"). Run as a host-network container; point DNS for each subdomain at the box.
+- **`deploy-box/nginx.conf`** — alternative if you already run Nginx (bring your own certs via
+  certbot); explicit `Upgrade`/`Connection` headers + long read timeout for the Arena WS.
+
+Map (replace `api.example.com`): `cascade.` → :8090, `constraint.` → :8094, `learn.` → :8093,
+`refactor.` → :8095, `auth.` → :8081, `arena.` → :8096 (HTTP + `wss://arena.../arena/queue`).
+Set the matching `*_ENGINE_URL` (and `NEXT_PUBLIC_ARENA_WS_URL`) on Vercel.
+
+## 8. Infra layout (consolidated)
+
+The previously-duplicated `deploy/{terraform,k8s,monitoring}` tree has been **removed**. Canonical:
+
+| Path | Purpose | Phase | Validated |
+|---|---|---|---|
+| `docker-compose.prod.yml` + `deploy-box/` | single-box backend + TLS proxy | bootstrap | caddy validate ✅ |
+| `monitoring/` | Prometheus/Grafana/Loki for the box | bootstrap | yaml ✅ |
+| `terraform/` | AWS provisioning (VPC/ECS/Aurora/ElastiCache/ALB/CloudFront) | scale-up | terraform validate ✅ |
+| `k8s/` | namespaced Deployments + Services + HPA + monitoring | scale-up | kubeconform (k8s 1.29) ✅ |
+| `.github/workflows/deploy-aws.yml.disabled` | AWS CD rollout | scale-up (dormant) | — |
+
+All scale-up infra is **dormant** until revenue justifies the bill.

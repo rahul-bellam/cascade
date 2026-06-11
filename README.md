@@ -116,7 +116,10 @@ cascade/
 ├── content/               # DAGs, lessons, constraint tracks, spaghetti codebases (data-driven)
 ├── docs/                  # Strategy + engineering docs (see docs/README.md)
 ├── scripts/               # DB migrations, seeding, validation, smoke tests
-├── deploy/                # Terraform, k8s, monitoring
+├── deploy-box/            # TLS reverse proxy for the single box (Caddy / Nginx)
+├── monitoring/            # Single-box observability (Prometheus + Grafana + Loki)
+├── terraform/             # AWS provisioning (scale-up; dormant)
+├── k8s/                   # Kubernetes manifests (scale-up; dormant)
 └── docker-compose.yml     # Local development environment
 ```
 
